@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+env/
+venv/
+
+# Environment variables
+.env
+.env.*
+
+# IDE
+.idea/
+.vscode/
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Jupyter (на майбутнє, якщо раптом)
+.ipynb_checkpoints/
+
+# MyPy / Pytest / Coverage (про запас)
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
