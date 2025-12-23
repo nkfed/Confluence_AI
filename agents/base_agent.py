@@ -1,9 +1,13 @@
-class BaseAgent:
-    """Базовий клас для AI-агентів."""
-    def __init__(self, api_key, model):
-        self.api_key = api_key
-        self.model = model
+from abc import ABC, abstractmethod
 
-    def run_query(self, prompt, context):
-        """Відправка запиту до LLM."""
+class BaseAgent(ABC):
+    """Базовий абстрактний клас для AI-агентів."""
+
+    def __init__(self):
+        """Базовий конструктор без параметрів."""
+        pass
+
+    @abstractmethod
+    def process_page(self, page_id: str):
+        """Базовий метод, який мають реалізувати всі агенти."""
         pass

@@ -1,17 +1,52 @@
+from typing import Dict, Any
+from agents.summary_agent import SummaryAgent
+
+
 class SummaryService:
     """
-    Сервіс для генерації summary.
-    Взаємодіє з AI-агентами та оновлює сторінки через ConfluenceService.
+    Сервіс для роботи з summary сторінок Confluence.
+    Інкапсулює логіку виклику агента та допоміжні речі
+    (логування, подальше розширення).
     """
-    def __init__(self, confluence_service, ai_agent):
-        self.confluence_service = confluence_service
-        self.ai_agent = ai_agent
 
-    def process_page_summary(self, page_id):
+    def __init__(self) -> None:
+        """Ініціалізує сервіс та створює екземпляр SummaryAgent."""
+        self.agent = SummaryAgent()
+
+    def summarize_page(self, page_id: str) -> Dict[str, Any]:
         """
-        Основний флоу:
-        1. Читання сторінки
-        2. Генерація summary через AI
-        3. Оновлення сторінки в Confluence
+        Повний цикл:
+        - викликає SummaryAgent для отримання summary
+        - повертає структурований словник з метаданими
         """
-        pass
+        result = self.agent.process_page(page_id)
+
+        if not result:
+            raise ValueError(f"Не вдалося отримати сторінку {page_id}")
+
+        return {
+            "page_id": result.get("page_id", page_id),
+            "title": result.get("title"),
+            "summary": result.get("summary", ""),
+            "summary_tokens_estimate": result.get("summary_tokens_estimate", 0),
+        }
+
+    def summarize_and_update_page(self, page_id: str) -> Dict[str, Any]:
+        """
+        Використовує метод агента для оновлення сторінки в Confluence
+        (якщо реалізований update_page_with_summary в SummaryAgent).
+        """
+        if not hasattr(self.agent, "update_page_with_summary"):
+            raise NotImplementedError(
+                "Метод update_page_with_summary відсутній у SummaryAgent."
+            )
+
+        update_result = self.agent.update_page_with_summary(page_id)
+
+        return {
+            "page_id": update_result.get("page_id", page_id),
+            "title": update_result.get("title"),
+            "status": update_result.get("status"),
+            "summary_added": update_result.get("summary_added", False),
+            "summary_tokens_estimate": update_result.get("summary_tokens_estimate", 0),
+        }

@@ -6,13 +6,21 @@ from clients.openai_client import OpenAIClient
 def test_confluence():
     print("\n=== TEST: Confluence Client ===")
     client = ConfluenceClient()
-    page_id = "19721289759"  # твій реальний page_id
+
+    # Рекомендовано зберігати page_id у .env
+    page_id = settings.TEST_PAGE_ID if hasattr(settings, "TEST_PAGE_ID") else None
+
+    if not page_id:
+        print("⚠️ TEST_PAGE_ID не заданий у .env — пропускаємо тест Confluence.")
+        return
 
     try:
         page = client.get_page(page_id)
         print("✅ Title:", page.get("title"))
         print("✅ Version:", page["version"]["number"])
-        print("✅ Body:", page["body"]["storage"]["value"][:120] + "...")
+
+        body_preview = client.get_page_body(page_id)[:120]
+        print("✅ Body preview:", body_preview + "...")
     except Exception as e:
         print("❌ Confluence error:", e)
 
@@ -20,8 +28,12 @@ def test_confluence():
 def test_openai():
     print("\n=== TEST: OpenAI Client ===")
     client = OpenAIClient()
-    result = client.summarize("Це тестовий текст для перевірки роботи OpenAI клієнта.")
-    print("AI summary:", result)
+
+    try:
+        result = client.summarize("Це тестовий текст для перевірки роботи OpenAI клієнта.")
+        print("AI summary:", result)
+    except Exception as e:
+        print("❌ OpenAI error:", e)
 
 
 def main():

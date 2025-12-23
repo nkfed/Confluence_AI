@@ -1,9 +1,9 @@
 from fastapi import FastAPI
-from .routes import router
+from api.routes.summary import router as summary_router
 
 app = FastAPI(title="Confluence AI Agent API")
 
-app.include_router(router)
+app.include_router(summary_router)
 
 @app.get("/")
 def read_root():
