@@ -5,16 +5,30 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="7e9e8f9b-2cb4-4959-8f4b-b84d1b4d3ddc" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/base_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/base_agent.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/agents/summary_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/agents/summary_agent.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/api/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/routes.py" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/clients/confluence_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/clients/confluence_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/clients/openai_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/clients/openai_client.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/base_agent.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/agents/summary_agent.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/routes/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/routes/health.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/routes/summary.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/clients/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/clients/confluence_client.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/clients/openai_client.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/run_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/run_server.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/run_tests.py" beforeDir="false" afterPath="$PROJECT_DIR$/run_tests.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/summary_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/services/summary_service.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/settings.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/confluence_service.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/summary_service.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/tests/agents/test_summary_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/tests/agents/test_summary_agent.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/__init__.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/helpers.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/html_to_text.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/logger.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utils/token_counter.py" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -28,9 +42,9 @@
     <commands />
     <urls />
   </component>
-  <component name="ProjectColorInfo"><![CDATA[{
-  "associatedIndex": 3
-}]]></component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 3
+}</component>
   <component name="ProjectId" id="37D9ZmDW3bzofSC0l1UyDgAdm8i" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
@@ -48,7 +62,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "main",
+    "git-widget-placeholder": "refactor/move-to-src-structure",
     "junie.onboarding.icon.badge.shown": "true",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -75,7 +89,8 @@
       <option name="number" value="Default" />
       <option name="presentableId" value="Default" />
       <updated>1766426832346</updated>
-      <workItem from="1766426833415" duration="19405000" />
+      <workItem from="1766426833415" duration="20306000" />
+      <workItem from="1766580785324" duration="5167000" />
     </task>
     <servers />
   </component>

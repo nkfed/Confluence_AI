@@ -1,4 +1,4 @@
-from agents.summary_agent import SummaryAgent
+from src.agents.summary_agent import SummaryAgent
 
 
 class DummyAIClient:

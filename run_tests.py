@@ -1,6 +1,6 @@
 from settings import settings
-from clients.confluence_client import ConfluenceClient
-from clients.openai_client import OpenAIClient
+from src.clients.confluence_client import ConfluenceClient
+from src.clients.openai_client import OpenAIClient
 
 
 def test_confluence():
