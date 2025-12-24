@@ -4,20 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="7e9e8f9b-2cb4-4959-8f4b-b84d1b4d3ddc" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/run_server.py" beforeDir="false" afterPath="$PROJECT_DIR$/run_server.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/settings.py" beforeDir="false" afterPath="$PROJECT_DIR$/settings.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agents/base_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agents/base_agent.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/agents/summary_agent.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/agents/summary_agent.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/main.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/main.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/api/routes/summary.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/api/routes/summary.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clients/confluence_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/clients/confluence_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/clients/openai_client.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/clients/openai_client.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/services/summary_service.py" beforeDir="false" afterPath="$PROJECT_DIR$/src/services/summary_service.py" afterDir="false" />
-    </list>
+    <list default="true" id="7e9e8f9b-2cb4-4959-8f4b-b84d1b4d3ddc" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -78,7 +65,7 @@
       <option name="presentableId" value="Default" />
       <updated>1766426832346</updated>
       <workItem from="1766426833415" duration="20306000" />
-      <workItem from="1766580785324" duration="20441000" />
+      <workItem from="1766580785324" duration="20910000" />
     </task>
     <servers />
   </component>
