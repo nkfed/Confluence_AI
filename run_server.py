@@ -10,7 +10,7 @@ if SRC_PATH not in sys.path:
     sys.path.append(SRC_PATH)
 
 if __name__ == "__main__":
-    print("🚀 Starting FastAPI server...")
+    print("Starting FastAPI server...")
     uvicorn.run(
         "api.main:app",
         host=settings.API_HOST,

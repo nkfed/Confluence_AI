@@ -1,0 +1,88 @@
+Мета: додати retry-логіку з логуванням для ConfluenceClient та OpenAIClient.
+
+Завдання:
+
+1. Створи файл src/core/logging/retry.py.
+2. Додай у нього декоратор log_retry згідно з кодом:
+import time
+import asyncio
+import functools
+from typing import Callable, Any, Type, Tuple
+
+from core.logging.logger import get_logger
+
+
+def log_retry(
+    attempts: int = 3,
+    backoff: float = 1.0,
+    exceptions: Tuple[Type[Exception], ...] = (Exception,),
+):
+    """
+    Декоратор для retry-логіки з логуванням.
+    Підтримує sync та async функції.
+    """
+
+    def decorator(func: Callable):
+        logger = get_logger(func.__module__)
+
+        # async version
+        if asyncio.iscoroutinefunction(func):
+
+            @functools.wraps(func)
+            async def async_wrapper(*args, **kwargs) -> Any:
+                for attempt in range(1, attempts + 1):
+                    try:
+                        return await func(*args, **kwargs)
+                    except exceptions as e:
+                        if attempt == attempts:
+                            logger.exception(
+                                f"{func.__name__} failed after {attempts} attempts: {e}"
+                            )
+                            raise
+
+                        delay = backoff * attempt
+                        logger.warning(
+                            f"{func.__name__} retry {attempt}/{attempts} after {delay:.1f}s due to: {e}"
+                        )
+                        await asyncio.sleep(delay)
+
+            return async_wrapper
+
+        # sync version
+        else:
+
+            @functools.wraps(func)
+            def sync_wrapper(*args, **kwargs) -> Any:
+                for attempt in range(1, attempts + 1):
+                    try:
+                        return func(*args, **kwargs)
+                    except exceptions as e:
+                        if attempt == attempts:
+                            logger.exception(
+                                f"{func.__name__} failed after {attempts} attempts: {e}"
+                            )
+                            raise
+
+                        delay = backoff * attempt
+                        logger.warning(
+                            f"{func.__name__} retry {attempt}/{attempts} after {delay:.1f}s due to: {e}"
+                        )
+                        time.sleep(delay)
+
+            return sync_wrapper
+
+    return decorator
+
+3. У src/clients/confluence_client.py:
+   - додай @log_retry(attempts=3, backoff=1.0) над методом get_page.
+
+4. У src/clients/openai_client.py:
+   - додай @log_retry(attempts=3, backoff=2.0) над методом generate.
+
+5. Переконайся, що:
+   - сервер стартує,
+   - при виклику /summary у logs/clients.log з’являються записи retry.
+
+Після виконання:
+- надай список змінених файлів,
+- наведи приклад retry-логів.

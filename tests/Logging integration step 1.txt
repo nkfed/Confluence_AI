@@ -1,0 +1,238 @@
+Ти — AI-асистент розробки для проєкту "confluence-ai-platform".
+
+Мета: додати централізовану систему логування з окремими файлами логів для компонентів, підтримкою ротації та опційним JSON-логуванням.
+
+Завдання:
+1. Створи директорію:
+   src/core/logging/
+   з файлами:
+   - __init__.py (порожній)
+   - logging_config.py
+   - logger.py
+
+2. Внеси вміст у logging_config.py згідно з таким кодом:
+import logging
+import logging.config
+import os
+from typing import Dict, Any
+
+from settings import settings
+
+
+def ensure_log_dir_exists(log_dir: str) -> None:
+    if not os.path.exists(log_dir):
+        os.makedirs(log_dir, exist_ok=True)
+
+
+def get_logging_config() -> Dict[str, Any]:
+    log_level = settings.LOG_LEVEL.upper()
+    log_dir = settings.LOG_DIR
+    use_json = settings.LOG_JSON
+
+    ensure_log_dir_exists(log_dir)
+
+    if use_json:
+        formatter_name = "json"
+    else:
+        formatter_name = "standard"
+
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {
+            "standard": {
+                "format": "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
+            },
+            "json": {
+                "()": "logging.Formatter",
+                "format": (
+                    '{"timestamp": "%(asctime)s", '
+                    '"level": "%(levelname)s", '
+                    '"logger": "%(name)s", '
+                    '"message": "%(message)s"}'
+                ),
+                "datefmt": "%Y-%m-%dT%H:%M:%S",
+            },
+        },
+        "handlers": {
+            "console": {
+                "class": "logging.StreamHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "stream": "ext://sys.stdout",
+            },
+            "file_app": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "app.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+            },
+            "file_api": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "api.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+            },
+            "file_agents": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "agents.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+            },
+            "file_services": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "services.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+            },
+            "file_clients": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "clients.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+            },
+            "file_utils": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "utils.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+            },
+        },
+        "loggers": {
+            "app": {
+                "handlers": ["console", "file_app"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "api": {
+                "handlers": ["console", "file_api"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "agents": {
+                "handlers": ["console", "file_agents"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "services": {
+                "handlers": ["console", "file_services"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "clients": {
+                "handlers": ["console", "file_clients"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "utils": {
+                "handlers": ["console", "file_utils"],
+                "level": log_level,
+                "propagate": False,
+            },
+            # fallback для всього іншого
+            "": {
+                "handlers": ["console", "file_app"],
+                "level": log_level,
+                "propagate": True,
+            },
+        },
+    }
+
+
+def configure_logging() -> None:
+    config = get_logging_config()
+    logging.config.dictConfig(config)
+
+3. Внеси вміст у logger.py згідно з таким кодом:
+import logging
+from typing import Optional
+
+from core.logging.logging_config import configure_logging
+
+_configured = False
+
+
+def _ensure_configured() -> None:
+    global _configured
+    if not _configured:
+        configure_logging()
+        _configured = True
+
+
+def get_logger(name: Optional[str] = None) -> logging.Logger:
+    """
+    Повертає логер з централізованою конфігурацією.
+    Якщо name починається з відомого префіксу (api., agents., services., clients., utils.),
+    відповідний логер буде маршрутизований у свій файл.
+    """
+    _ensure_configured()
+
+    if not name:
+        return logging.getLogger("app")
+
+    # Нормалізуємо ім'я до кореневого логера компонента
+    if name.startswith("api."):
+        return logging.getLogger("api")
+    if name.startswith("agents."):
+        return logging.getLogger("agents")
+    if name.startswith("services."):
+        return logging.getLogger("services")
+    if name.startswith("clients."):
+        return logging.getLogger("clients")
+    if name.startswith("utils."):
+        return logging.getLogger("utils")
+
+    return logging.getLogger(name)
+
+4. Онови settings.py:
+   - додай поля LOG_LEVEL, LOG_JSON, LOG_DIR, які читаються з .env.
+   - не змінюй існуючі налаштування.
+
+5. У інтеграційних точках:
+   - src/api/main.py
+   - src/agents/summary_agent.py
+   - src/clients/confluence_client.py
+   - src/clients/openai_client.py
+   - src/services/summary_service.py (якщо доречно)
+   додай:
+       from core.logging.logger import get_logger
+       logger = get_logger(__name__)
+   та кілька базових logger.info(...) викликів у ключових місцях.
+
+6. Переконайся, що:
+   - при старті сервера створюється директорія logs/ (якщо її немає)
+   - логування працює в консоль і у відповідні файли:
+       logs/app.log
+       logs/api.log
+       logs/agents.log
+       logs/services.log
+       logs/clients.log
+       logs/utils.log
+
+7. Запусти:
+   - python run_server.py
+   - зроби один тестовий запит до /summary (якщо можливо в середовищі)
+   - перевір, що логи з’явились у відповідних файлах.
+
+Після завершення:
+- надай список змінених файлів
+- коротко опиши, які логери куди пишуть.

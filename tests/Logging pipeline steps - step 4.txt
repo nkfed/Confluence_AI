@@ -1,0 +1,63 @@
+Мета: додати pipeline‑логування в SummaryAgent.
+
+Завдання:
+
+1. Відкрий файл src/agents/summary_agent.py.
+2. Додай структуровані лог‑кроки у метод generate_summary згідно з шаблоном:
+   - Step 1: Fetching Confluence page
+   - Step 2: Converting HTML to text
+   - Step 3: Estimating tokens
+   - Step 4: Building prompt
+   - Step 5: Calling OpenAI
+   - Step 6: Summary generated
+   
+   Шаблон:
+from core.logging.logger import get_logger
+from core.logging.timing import log_timing
+
+logger = get_logger(__name__)
+
+class SummaryAgent(BaseAgent):
+    def __init__(self, confluence_client: ConfluenceClient, openai_client: OpenAIClient):
+        self.confluence_client = confluence_client
+        self.openai_client = openai_client
+
+    @log_timing
+    async def generate_summary(self, page_id: str) -> str:
+        logger.info(f"Step 1: Fetching Confluence page (page_id={page_id})")
+        page = self.confluence_client.get_page(page_id)
+
+        html_content = page.get("body", {}).get("storage", {}).get("value", "")
+        logger.info(f"Step 2: Converting HTML to text (html_length={len(html_content)})")
+
+        text = html_to_text(html_content)
+        logger.info(f"Step 2.1: Text extracted (text_length={len(text)})")
+
+        logger.info("Step 3: Estimating tokens")
+        approx_tokens = estimate_tokens_count(text)
+        logger.info(f"Step 3.1: Estimated tokens = {approx_tokens}")
+
+        logger.info("Step 4: Building prompt for OpenAI")
+        prompt = f"Summarize the following content:\n\n{text[:5000]}"
+
+        logger.info("Step 5: Calling OpenAI")
+        summary = await self.openai_client.generate(prompt)
+
+        logger.info("Step 6: Summary generated successfully")
+        return summary   
+
+3. Логування має включати:
+   - page_id
+   - довжину HTML
+   - довжину тексту
+   - приблизну кількість токенів
+   - факт виклику OpenAI
+   - успішне завершення
+
+4. Переконайся, що:
+   - сервер стартує,
+   - при виклику /summary у logs/agents.log з’являються всі кроки pipeline.
+
+Після виконання:
+- надай список змінених файлів,
+- наведи приклад pipeline‑логів.

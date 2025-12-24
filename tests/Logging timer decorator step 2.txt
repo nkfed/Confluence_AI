@@ -1,0 +1,69 @@
+Мета: додати декоратор @log_timing для логування часу виконання функцій.
+
+Завдання:
+
+1. Створи файл src/core/logging/timing.py.
+2. Додай у нього декоратор log_timing згідно з кодом:
+import time
+import functools
+import inspect
+from typing import Callable, Any, Coroutine
+
+from core.logging.logger import get_logger
+
+
+def log_timing(func: Callable) -> Callable:
+    """
+    Декоратор для логування часу виконання функцій (sync та async).
+    Автоматично використовує логер модуля, де визначена функція.
+    """
+
+    logger = get_logger(func.__module__)
+
+    if inspect.iscoroutinefunction(func):
+        # async function
+        @functools.wraps(func)
+        async def wrapper(*args, **kwargs) -> Any:
+            start = time.perf_counter()
+            try:
+                result = await func(*args, **kwargs)
+                duration = (time.perf_counter() - start) * 1000
+                logger.info(f"{func.__name__} took {duration:.2f} ms")
+                return result
+            except Exception:
+                duration = (time.perf_counter() - start) * 1000
+                logger.exception(f"{func.__name__} failed after {duration:.2f} ms")
+                raise
+
+        return wrapper
+
+    else:
+        # sync function
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs) -> Any:
+            start = time.perf_counter()
+            try:
+                result = func(*args, **kwargs)
+                duration = (time.perf_counter() - start) * 1000
+                logger.info(f"{func.__name__} took {duration:.2f} ms")
+                return result
+            except Exception:
+                duration = (time.perf_counter() - start) * 1000
+                logger.exception(f"{func.__name__} failed after {duration:.2f} ms")
+                raise
+
+        return wrapper
+
+3. У наступних класах додай @log_timing над ключовими методами:
+   - SummaryAgent.generate_summary
+   - ConfluenceClient.get_page
+   - OpenAIClient.generate (або інший метод виклику OpenAI)
+   - SummaryService.process_page (якщо існує)
+
+4. Переконайся, що:
+   - сервер стартує,
+   - при виклику /summary у відповідних логах з’являються записи "... took X ms".
+
+Після виконання:
+- надай список змінених файлів,
+- наведи приклад 2–3 записів з логів з часом виконання.
