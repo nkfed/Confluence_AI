@@ -13,7 +13,7 @@ class OpenAIClient:
 
     def __init__(self):
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
-        self.model = "gpt-4o"
+        self.model = "gpt-5-mini"
 
     @log_timing
     async def generate(self, prompt: str):
