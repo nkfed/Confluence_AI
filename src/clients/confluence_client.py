@@ -123,33 +123,45 @@ class ConfluenceClient:
         resp = await self._get(url)
         return [label["name"] for label in resp.get("results", [])]
 
-    async def update_labels(self, page_id: str, tags: dict, dry_run: bool = False):
+    async def update_labels(self, page_id: str, tags: dict, dry_run: bool = False) -> dict:
         try:
             logger.info(f"[Confluence] update_labels() called for page {page_id}, dry_run={dry_run}")
             # 1. Whitelist check
             allowed = [x.strip() for x in settings.ALLOWED_TAGGING_PAGES.split(",")]
             if page_id not in allowed:
                 logger.warning(f"[Confluence] Page {page_id} not in whitelist, skipping update")
-                return
+                return {
+                    "old_labels": [],
+                    "new_labels": [],
+                    "to_add": [],
+                    "to_remove": [],
+                    "status": "skipped"
+                }
 
             # 2. Отримати існуючі теги
             existing = await self.get_labels(page_id)
 
             # 3. Зібрати нові теги у плоский список
-            new_tags = []
+            new_tags_flat = []
             for category, values in tags.items():
-                new_tags.extend(values)
+                new_tags_flat.extend(values)
 
             # 4. Визначити теги, які треба додати
-            to_add = [t for t in new_tags if t not in existing]
+            to_add = [t for t in new_tags_flat if t not in existing]
 
-            # 5. Визначити теги, які треба видалити (опційно)
-            to_remove = [t for t in existing if t not in new_tags]
+            # 5. Визначити теги, які треба видалити
+            to_remove = [t for t in existing if t not in new_tags_flat]
 
             # 6. Dry-run логіка
             if dry_run:
                 logger.info(f"[Confluence] Dry-run: would add {to_add}, remove {to_remove}")
-                return
+                return {
+                    "old_labels": existing,
+                    "new_labels": existing,  # В dry_run теги не змінюються
+                    "to_add": to_add,
+                    "to_remove": to_remove,
+                    "status": "success"
+                }
 
             # 7. Реалізувати додавання тегів
             if to_add:
@@ -164,6 +176,17 @@ class ConfluenceClient:
                 await self._delete(url)
             if to_remove:
                 logger.info(f"[Confluence] Removed labels: {to_remove}")
+
+            # Отримуємо фінальний стан тегів після оновлення
+            final_labels = await self.get_labels(page_id) if (to_add or to_remove) else existing
+
+            return {
+                "old_labels": existing,
+                "new_labels": final_labels,
+                "to_add": to_add,
+                "to_remove": to_remove,
+                "status": "success"
+            }
 
         except Exception as e:
             logger.error(f"[Confluence] Failed to update labels for page {page_id}: {e}")

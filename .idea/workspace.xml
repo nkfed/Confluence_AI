@@ -40,7 +40,7 @@
     "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "ai.playground.ignore.import.keys.banner.in.settings": "true",
     "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
-    "git-widget-placeholder": "feature/prompt-management-and-tagging-agent",
+    "git-widget-placeholder": "feature/tagging-agent-real-update-test",
     "junie.onboarding.icon.badge.shown": "true",
     "node.js.detected.package.eslint": "true",
     "node.js.detected.package.tslint": "true",
@@ -100,7 +100,7 @@
       <updated>1766426832346</updated>
       <workItem from="1766426833415" duration="20306000" />
       <workItem from="1766580785324" duration="21625000" />
-      <workItem from="1766647018410" duration="6777000" />
+      <workItem from="1766647018410" duration="22129000" />
     </task>
     <servers />
   </component>
