@@ -21,6 +21,13 @@ class TaggingAgent(BaseAgent):
         response = await self.ai.generate(prompt)
         return self._parse_response(response)
 
+    async def process_page(self, page_id: str):
+        """
+        TaggingAgent не використовує process_page напряму.
+        Метод реалізовано для сумісності з BaseAgent.
+        """
+        raise NotImplementedError("TaggingAgent does not support process_page()")
+
     def _parse_response(self, response: str) -> dict:
         import json
         try:
