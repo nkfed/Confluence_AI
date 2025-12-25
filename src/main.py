@@ -1,20 +1,24 @@
 from fastapi import FastAPI
+from src.api.routers.health import router as health_router
+from src.api.routers.summary import router as summary_router
+from src.api.routers.tagging import router as tagging_router
+from src.api.routers.bulk import router as bulk_router
+from src.api.middleware import LoggingMiddleware
+from src.core.logging.logger import get_logger
 
-# Імпорти роутерів
-from src.api.routers import health, summary, tagging, bulk
+logger = get_logger(__name__)
 
-app = FastAPI(
-    title="Confluence AI Platform",
-    version="1.0.0"
-)
+app = FastAPI(title="Confluence AI Agent API")
+app.add_middleware(LoggingMiddleware)
 
-# Підключення роутерів
-app.include_router(health.router)
-app.include_router(summary.router)
-app.include_router(tagging.router)
-app.include_router(bulk.router)
+logger.info("Starting API application...")
 
-# Головна сторінка
+app.include_router(health_router)
+app.include_router(summary_router)
+app.include_router(tagging_router)
+app.include_router(bulk_router)
+
 @app.get("/")
-def root():
-    return {"status": "ok", "message": "Confluence AI Platform is running"}
+def read_root():
+    logger.info("Root endpoint called")
+    return {"status": "ok", "service": "Confluence AI Agent"}
