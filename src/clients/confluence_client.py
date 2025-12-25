@@ -92,8 +92,81 @@ class ConfluenceClient:
 
         return self.update_page(page_id, new_body)
 
-    async def update_labels(self, page_id: str, tags: dict):
-        raise NotImplementedError
+    async def _get(self, url: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
+        try:
+            response = requests.get(url, params=params, auth=self.auth, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"GET {url} failed: {e}")
+            raise RuntimeError(f"Confluence API GET error: {e}")
+
+    async def _post(self, url: str, json: Any) -> Dict[str, Any]:
+        try:
+            response = requests.post(url, json=json, auth=self.auth, headers=self.headers, timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as e:
+            logger.error(f"POST {url} failed: {e}")
+            raise RuntimeError(f"Confluence API POST error: {e}")
+
+    async def _delete(self, url: str):
+        try:
+            response = requests.delete(url, auth=self.auth, headers=self.headers, timeout=10)
+            response.raise_for_status()
+        except requests.RequestException as e:
+            logger.error(f"DELETE {url} failed: {e}")
+            raise RuntimeError(f"Confluence API DELETE error: {e}")
+
+    async def get_labels(self, page_id: str):
+        url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label"
+        resp = await self._get(url)
+        return [label["name"] for label in resp.get("results", [])]
+
+    async def update_labels(self, page_id: str, tags: dict, dry_run: bool = False):
+        try:
+            # 1. Whitelist check
+            allowed = settings.ALLOWED_TAGGING_PAGES.split(",")
+            if page_id not in allowed:
+                logger.warning(f"[Confluence] Page {page_id} not in whitelist, skipping update")
+                return
+
+            # 2. Отримати існуючі теги
+            existing = await self.get_labels(page_id)
+
+            # 3. Зібрати нові теги у плоский список
+            new_tags = []
+            for category, values in tags.items():
+                new_tags.extend(values)
+
+            # 4. Визначити теги, які треба додати
+            to_add = [t for t in new_tags if t not in existing]
+
+            # 5. Визначити теги, які треба видалити (опційно)
+            to_remove = [t for t in existing if t not in new_tags]
+
+            # 6. Dry-run логіка
+            if dry_run:
+                logger.info(f"[Confluence] Dry-run: would add {to_add}, remove {to_remove}")
+                return
+
+            # 7. Реалізувати додавання тегів
+            if to_add:
+                payload = [{"prefix": "global", "name": t} for t in to_add]
+                url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label"
+                await self._post(url, json=payload)
+                logger.info(f"[Confluence] Added labels: {to_add}")
+
+            # 8. Реалізувати видалення тегів
+            for t in to_remove:
+                url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label/{t}"
+                await self._delete(url)
+            if to_remove:
+                logger.info(f"[Confluence] Removed labels: {to_remove}")
+
+        except Exception as e:
+            logger.error(f"[Confluence] Failed to update labels for page {page_id}: {e}")
+            raise
 
     def search(self, query: str, limit: int = 10) -> Dict[str, Any]:
         """Пошук сторінок у Confluence."""
