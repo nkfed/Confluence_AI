@@ -1,9 +1,9 @@
+import asyncio
 from typing import Optional
 from openai import AsyncOpenAI
 from settings import settings
 from src.core.logging.logger import get_logger
 from src.core.logging.timing import log_timing
-from src.core.logging.retry import log_retry
 
 logger = get_logger(__name__)
 
@@ -15,31 +15,39 @@ class OpenAIClient:
         self.client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
         self.model = settings.OPENAI_MODEL or "gpt-4o"
 
-    @log_retry(attempts=3, backoff=2.0)
     @log_timing
-    async def generate(self, prompt: str, system_prompt: str = "You are a helpful AI assistant.") -> str:
-        """
-        Універсальний метод для генерації тексту.
-        Повертає текстову відповідь моделі.
-        """
-        logger.info(f"Sending request to OpenAI (model: {self.model})")
-        try:
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=0.2
-            )
+    async def generate(self, prompt: str):
+        max_retries = 5
+        delay = 1  # seconds
 
-            # Новий формат відповіді OpenAI SDK
-            logger.info("Received response from OpenAI")
-            return response.choices[0].message.content
+        for attempt in range(1, max_retries + 1):
+            try:
+                logger.info(f"[OpenAI] Attempt {attempt}/{max_retries}")
+                response = await self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.choices[0].message.content
 
-        except Exception as e:
-            logger.error(f"OpenAI API error: {e}")
-            raise RuntimeError(f"OpenAI API error: {e}")
+            except Exception as e:
+                error_text = str(e)
+
+                # Rate limit (429)
+                if "rate_limit" in error_text or "429" in error_text:
+                    logger.warning(f"[OpenAI] Rate limit hit on attempt {attempt}: {e}")
+
+                    if attempt == max_retries:
+                        logger.error("[OpenAI] Max retries reached, giving up")
+                        raise RuntimeError(f"OpenAI rate limit error after {max_retries} attempts: {e}")
+
+                    logger.info(f"[OpenAI] Waiting {delay}s before retry...")
+                    await asyncio.sleep(delay)
+                    delay *= 2
+                    continue
+
+                # Інші помилки — пробросити далі
+                logger.error(f"[OpenAI] Unexpected error: {e}")
+                raise RuntimeError(f"OpenAI API error: {e}")
 
     async def summarize(self, text: str) -> str:
         """Згенерувати summary для довгого тексту."""
