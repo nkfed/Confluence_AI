@@ -6,6 +6,7 @@ from src.utils.html_to_text import html_to_text
 from src.utils.token_counter import estimate_tokens_count
 from src.core.logging.logger import get_logger, audit_logger
 from src.core.logging.timing import log_timing
+from src.utils.prompt_loader import PromptLoader
 
 logger = get_logger(__name__)
 
@@ -37,12 +38,8 @@ class SummaryAgent(BaseAgent):
         logger.info(f"Step 3.1: Estimated tokens = {approx_tokens}")
 
         logger.info("Step 4: Building prompt for OpenAI")
-        prompt = (
-            "Зроби структуроване, лаконічне та професійне summary для наступного тексту. "
-            "Виділи ключові тези, рішення, ризики, залежності та наступні кроки. "
-            "Форматуй результат у вигляді зрозумілих блоків.\n\n"
-            f"Текст:\n{text[:5000]}"
-        )
+        prompt_template = PromptLoader.load("summary", mode=self.mode)
+        prompt = prompt_template.format(TEXT=text[:5000])
 
         logger.info("Step 5: Calling OpenAI")
         summary = await self.ai.generate(prompt)
