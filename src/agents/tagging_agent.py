@@ -26,16 +26,73 @@ class TaggingAgent(BaseAgent):
 
     async def suggest_tags(self, text: str) -> dict:
         prompt = f"""
-Ти — класифікаційний агент. Проаналізуй текст і поверни ТІЛЬКИ JSON.
-Без пояснень. Без markdown. Без тексту до або після JSON.
+Ти — класифікаційний агент для Confluence.
+
+Твоє завдання — проаналізувати текст і повернути ТІЛЬКИ JSON з тегами.
+Не додавай пояснень, markdown або тексту поза JSON.
+
+Використовуй ТІЛЬКИ теги зі списків нижче.
+Не вигадуй нових тегів.
+Якщо тег не підходить — не включай його.
+
+------------------------------------------
+ДОСТУПНІ ТЕГИ (канонічні):
+
+doc-теги:
+- doc-tech
+- doc-business
+- doc-process
+- doc-onboarding
+- doc-architecture
+- doc-requirements
+- doc-design
+- doc-knowledge-base
+- doc-ai-tools
+- doc-prompt-template
+
+domain-теги:
+- domain-ehealth-core
+- domain-dzr
+- domain-rehab-1-0
+- domain-rehab-2-0
+- domain-helpdesk-site
+- domain-ai-integration
+
+kb-теги:
+- kb-overview
+- kb-template
+- kb-example
+- kb-index
+- kb-canonical
+- kb-uml
+- kb-components
+- kb-entities-hierarchy
+- kb-error-handling
+
+tool-теги:
+- tool-confluence
+- tool-vscode
+- tool-pycharm
+- tool-github-copilot
+- tool-nextjs
+- tool-vercel
+- tool-rovo-agent
+------------------------------------------
+
+Правила:
+1. Повертаєш максимум 3 теги в кожній категорії.
+2. Повертаєш тег ТІЛЬКИ якщо він явно присутній у тексті або однозначно випливає з контексту.
+3. Якщо немає релевантних тегів — поверни порожній список.
+4. Не вигадуй нових тегів.
+5. Не додавай тексту поза JSON.
 
 Формат відповіді строго такий:
 
 {{
-  "doc": ["..."],
-  "domain": ["..."],
-  "kb": ["..."],
-  "tool": ["..."]
+  "doc": [],
+  "domain": [],
+  "kb": [],
+  "tool": []
 }}
 
 Текст для аналізу:
