@@ -33,11 +33,7 @@ class TaggingService:
 
         logger.info(f"[TaggingService] Suggested tags: {tags}")
 
-        if dry_run:
-            logger.info(f"[TaggingService] Dry-run mode enabled, skipping update for page {page_id}")
-            return {"status": "ok", "dry_run": True, "tags": tags}
+        logger.info(f"[TaggingService] Updating labels for page {page_id} (dry_run={dry_run})")
+        await self.confluence.update_labels(page_id, tags, dry_run=dry_run)
 
-        logger.info(f"[TaggingService] Updating labels for page {page_id}")
-        await self.confluence.update_labels(page_id, tags)
-
-        return {"status": "ok", "tags": tags}
+        return {"status": "ok", "tags": tags, "dry_run": dry_run}

@@ -125,8 +125,9 @@ class ConfluenceClient:
 
     async def update_labels(self, page_id: str, tags: dict, dry_run: bool = False):
         try:
+            logger.info(f"[Confluence] update_labels() called for page {page_id}, dry_run={dry_run}")
             # 1. Whitelist check
-            allowed = settings.ALLOWED_TAGGING_PAGES.split(",")
+            allowed = [x.strip() for x in settings.ALLOWED_TAGGING_PAGES.split(",")]
             if page_id not in allowed:
                 logger.warning(f"[Confluence] Page {page_id} not in whitelist, skipping update")
                 return
