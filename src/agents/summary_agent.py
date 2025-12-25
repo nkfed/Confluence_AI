@@ -25,7 +25,7 @@ class SummaryAgent(BaseAgent):
         Повний пайплайн генерації summary згідно з кроками логування.
         """
         logger.info(f"Step 1: Fetching Confluence page (page_id={page_id})")
-        page = self.confluence.get_page(page_id)
+        page = await self.confluence.get_page(page_id)
 
         html_content = page.get("body", {}).get("storage", {}).get("value", "")
         logger.info(f"Step 2: Converting HTML to text (html_length={len(html_content)})")
@@ -57,7 +57,7 @@ class SummaryAgent(BaseAgent):
         # але завдання вимагає саме такий generate_summary.
         
         # Для отримання title спочатку фетчимо (або беремо з generate_summary, якщо змінити його)
-        page = self.confluence.get_page(page_id)
+        page = await self.confluence.get_page(page_id)
         title = page.get("title")
         
         summary = await self.generate_summary(page_id)

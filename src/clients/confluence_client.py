@@ -24,7 +24,7 @@ class ConfluenceClient:
 
     @log_retry(attempts=3, backoff=1.0)
     @log_timing
-    def get_page(self, page_id: str) -> Dict[str, Any]:
+    async def get_page(self, page_id: str) -> Dict[str, Any]:
         """Отримати сторінку Confluence у форматі storage."""
         logger.info(f"Fetching page {page_id} from Confluence")
         url = f"{self.base_url}/wiki/rest/api/content/{page_id}?expand=body.storage,version"
@@ -91,6 +91,9 @@ class ConfluenceClient:
         new_body = current_body + "\n" + html_block
 
         return self.update_page(page_id, new_body)
+
+    async def update_labels(self, page_id: str, tags: dict):
+        raise NotImplementedError
 
     def search(self, query: str, limit: int = 10) -> Dict[str, Any]:
         """Пошук сторінок у Confluence."""
