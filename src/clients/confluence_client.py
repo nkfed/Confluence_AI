@@ -169,6 +169,40 @@ class ConfluenceClient:
             logger.error(f"[Confluence] Failed to update labels for page {page_id}: {e}")
             raise
 
+    async def get_child_pages(self, parent_id: str) -> list[str]:
+        """Отримати список ID дочірніх сторінок."""
+        url = f"{self.base_url}/wiki/rest/api/content/{parent_id}/child/page"
+        resp = await self._get(url)
+        return [page["id"] for page in resp.get("results", [])]
+
+    async def get_all_pages_in_space(self, space_key: str) -> list[str]:
+        """Отримати список ID усіх сторінок у просторі."""
+        url = f"{self.base_url}/wiki/rest/api/content"
+        pages = []
+        limit = 50
+        start = 0
+
+        while True:
+            params = {
+                "spaceKey": space_key,
+                "type": "page",
+                "limit": limit,
+                "start": start
+            }
+            resp = await self._get(url, params=params)
+            results = resp.get("results", [])
+            if not results:
+                break
+
+            pages.extend([page["id"] for page in results])
+            start += limit
+
+            # Якщо результатів менше ліміту — ми на останній сторінці
+            if len(results) < limit:
+                break
+
+        return pages
+
     def search(self, query: str, limit: int = 10) -> Dict[str, Any]:
         """Пошук сторінок у Confluence."""
         url = f"{self.base_url}/wiki/rest/api/content/search"
