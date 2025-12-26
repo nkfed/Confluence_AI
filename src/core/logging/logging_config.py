@@ -123,6 +123,16 @@ def get_logging_config() -> Dict[str, Any]:
                 "encoding": "utf-8",
                 "filters": ["request_id"],
             },
+            "file_metrics": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "metrics.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 3,
+                "encoding": "utf-8",
+                "filters": ["request_id"],
+            },
         },
         "loggers": {
             "app": {
@@ -152,6 +162,11 @@ def get_logging_config() -> Dict[str, Any]:
             },
             "utils": {
                 "handlers": ["console", "file_utils"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "metrics": {
+                "handlers": ["file_metrics"],  # Only file, no console spam
                 "level": log_level,
                 "propagate": False,
             },

@@ -123,51 +123,72 @@ class ConfluenceClient:
         resp = await self._get(url)
         return [label["name"] for label in resp.get("results", [])]
 
-    async def update_labels(self, page_id: str, tags: dict, dry_run: bool = False):
-        try:
-            logger.info(f"[Confluence] update_labels() called for page {page_id}, dry_run={dry_run}")
-            # 1. Whitelist check
-            allowed = [x.strip() for x in settings.ALLOWED_TAGGING_PAGES.split(",")]
-            if page_id not in allowed:
-                logger.warning(f"[Confluence] Page {page_id} not in whitelist, skipping update")
-                return
-
-            # 2. Отримати існуючі теги
-            existing = await self.get_labels(page_id)
-
-            # 3. Зібрати нові теги у плоский список
-            new_tags = []
-            for category, values in tags.items():
-                new_tags.extend(values)
-
-            # 4. Визначити теги, які треба додати
-            to_add = [t for t in new_tags if t not in existing]
-
-            # 5. Визначити теги, які треба видалити (опційно)
-            to_remove = [t for t in existing if t not in new_tags]
-
-            # 6. Dry-run логіка
-            if dry_run:
-                logger.info(f"[Confluence] Dry-run: would add {to_add}, remove {to_remove}")
-                return
-
-            # 7. Реалізувати додавання тегів
-            if to_add:
-                payload = [{"prefix": "global", "name": t} for t in to_add]
+    async def update_labels(
+        self, 
+        page_id: str, 
+        labels_to_add: list = None, 
+        labels_to_remove: list = None
+    ):
+        """
+        Update labels for a Confluence page.
+        
+        Args:
+            page_id: The Confluence page ID
+            labels_to_add: List of label names to add
+            labels_to_remove: List of label names to remove
+            
+        Returns:
+            Dict with update results
+        """
+        labels_to_add = labels_to_add or []
+        labels_to_remove = labels_to_remove or []
+        
+        logger.info(f"[Confluence] update_labels() called for page {page_id}")
+        logger.debug(f"[Confluence] labels_to_add={labels_to_add}, labels_to_remove={labels_to_remove}")
+        
+        # 1. Get current labels
+        current_labels = await self.get_labels(page_id)
+        logger.debug(f"[Confluence] Current labels: {current_labels}")
+        
+        # 2. Compute final labels
+        # Remove labels that should be removed
+        final_labels = [label for label in current_labels if label not in labels_to_remove]
+        
+        # Add new labels (avoiding duplicates)
+        for label in labels_to_add:
+            if label not in final_labels:
+                final_labels.append(label)
+        
+        logger.info(f"[Confluence] Final labels: {final_labels}")
+        
+        # 3. Add new labels via API
+        if labels_to_add:
+            try:
+                payload = [{"prefix": "global", "name": label} for label in labels_to_add]
                 url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label"
                 await self._post(url, json=payload)
-                logger.info(f"[Confluence] Added labels: {to_add}")
-
-            # 8. Реалізувати видалення тегів
-            for t in to_remove:
-                url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label/{t}"
-                await self._delete(url)
-            if to_remove:
-                logger.info(f"[Confluence] Removed labels: {to_remove}")
-
-        except Exception as e:
-            logger.error(f"[Confluence] Failed to update labels for page {page_id}: {e}")
-            raise
+                logger.info(f"[Confluence] Successfully added labels: {labels_to_add}")
+            except Exception as e:
+                logger.error(f"[Confluence] Failed to add labels: {e}")
+                raise
+        
+        # 4. Remove labels via API
+        if labels_to_remove:
+            try:
+                for label in labels_to_remove:
+                    url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label/{label}"
+                    await self._delete(url)
+                logger.info(f"[Confluence] Successfully removed labels: {labels_to_remove}")
+            except Exception as e:
+                logger.error(f"[Confluence] Failed to remove labels: {e}")
+                raise
+        
+        return {
+            "page_id": page_id,
+            "labels_added": labels_to_add,
+            "labels_removed": labels_to_remove,
+            "final_labels": final_labels
+        }
 
     async def get_child_pages(self, parent_id: str) -> list[str]:
         """Отримати список ID дочірніх сторінок."""
