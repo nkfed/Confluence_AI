@@ -4,6 +4,8 @@ from src.agents.base_agent import BaseAgent
 from src.utils.prompt_loader import PromptLoader
 from src.clients.openai_client import OpenAIClient
 from src.core.logging.logger import get_logger
+from src.utils.tag_structure import limit_tags_per_category
+from src.config.tagging_settings import MAX_TAGS_PER_CATEGORY
 
 logger = get_logger(__name__)
 
@@ -21,7 +23,7 @@ def extract_json(s: str):
 
 class TaggingAgent(BaseAgent):
     def __init__(self, openai_client: OpenAIClient = None):
-        super().__init__()
+        super().__init__(agent_name="TAGGING_AGENT")
         self.ai = openai_client or OpenAIClient()
 
     async def suggest_tags(self, text: str) -> dict:
@@ -80,7 +82,7 @@ tool-теги:
 ------------------------------------------
 
 Правила:
-1. Повертаєш максимум 3 теги в кожній категорії.
+1. Повертаєш максимум {MAX_TAGS_PER_CATEGORY} теги в кожній категорії.
 2. Повертаєш тег ТІЛЬКИ якщо він явно присутній у тексті або однозначно випливає з контексту.
 3. Якщо немає релевантних тегів — поверни порожній список.
 4. Не вигадуй нових тегів.
@@ -104,7 +106,18 @@ tool-теги:
         raw = await self.ai.generate(prompt)
         logger.debug(f"[TaggingAgent] Raw model response: {raw}")
 
-        return self._parse_response(raw)
+        tags = self._parse_response(raw)
+        
+        # ✅ Post-processing: enforce MAX_TAGS_PER_CATEGORY limit
+        limited_tags = limit_tags_per_category(tags)
+        
+        if tags != limited_tags:
+            logger.warning(
+                f"[TaggingAgent] AI returned more than {MAX_TAGS_PER_CATEGORY} tags per category. "
+                f"Applied post-processing limit."
+            )
+        
+        return limited_tags
 
     async def process_page(self, page_id: str):
         """

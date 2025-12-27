@@ -6,7 +6,14 @@ from pydantic_settings import BaseSettings
 load_dotenv()
 
 class AgentMode(str, Enum):
+    """
+    Режими роботи агентів:
+    - TEST: dry-run режим, жодних змін у Confluence
+    - SAFE_TEST: оновлення тільки whitelist сторінок
+    - PROD: повний доступ до всіх сторінок
+    """
     TEST = "TEST"
+    SAFE_TEST = "SAFE_TEST"
     PROD = "PROD"
 
 def _env(name: str, default: str):

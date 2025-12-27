@@ -3,6 +3,7 @@ Prompt builder for constructing AI prompts with dynamic content.
 """
 from typing import List
 from src.utils.prompt_loader import PromptLoader
+from src.config.tagging_settings import MAX_TAGS_PER_CATEGORY, TAG_CATEGORIES
 
 
 class PromptBuilder:
@@ -40,14 +41,22 @@ class PromptBuilder:
         # Build ALLOWED TAGS section (plain text, each tag on new line)
         allowed_tags_section = "ALLOWED TAGS:\n" + "\n".join(f"- {label}" for label in allowed_labels)
         
+        # Build dynamic limit instruction using config
+        limit_instruction = f"""
+ВАЖЛИВО:
+Для кожної категорії тегів ({", ".join(TAG_CATEGORIES)}) пропонуй не більше {MAX_TAGS_PER_CATEGORY} найбільш релевантних тегів.
+Не повертай повні списки можливих тегів.
+Пріоритет — точність і релевантність, а не повнота."""
+        
         # Add explicit instruction about tagging behavior
         tagging_instruction = """
-IMPORTANT INSTRUCTIONS:
-1. Tag the PAGE ITSELF based on what it contains, not the content as data or hyperlinks.
-2. For example, if a page describes a REST API endpoint, tag it as "doc-tech", not as "api-endpoint-data".
-3. If a page is an index or root page with mostly links, tag it based on the section it belongs to.
-4. Use ONLY tags from the ALLOWED TAGS list above.
-5. Do NOT create new tags or use tags not in the list."""
+
+ІНСТРУКЦІЇ З ТЕГУВАННЯ:
+1. Тегуй САМУ СТОРІНКУ на основі того, що вона містить, а не контент як дані чи гіперпосилання.
+2. Наприклад, якщо сторінка описує REST API endpoint, тегуй її як "doc-tech", а не як "api-endpoint-data".
+3. Якщо сторінка є індексом або кореневою сторінкою з переважно посиланнями, тегуй її на основі розділу, до якого вона належить.
+4. Використовуй ТІЛЬКИ теги зі списку ALLOWED TAGS вище.
+5. НЕ створюй нові теги та не використовуй теги, яких немає у списку."""
         
         # Load mode-specific template (test or prod)
         mode_filename = "test.txt" if dry_run else "prod.txt"
@@ -57,6 +66,8 @@ IMPORTANT INSTRUCTIONS:
         prompt = f"""{base_template}
 
 {allowed_tags_section}
+
+{limit_instruction}
 
 {tagging_instruction}
 
@@ -90,6 +101,13 @@ Do not include any tags that are not in the ALLOWED TAGS list."""
         # Load policy template
         policy_template = PromptLoader.load("tagging", filename="policy.txt")
         
+        # Build dynamic limit instruction using config
+        limit_instruction = f"""
+ВАЖЛИВО:
+Для кожної категорії тегів ({", ".join(TAG_CATEGORIES)}) пропонуй не більше {MAX_TAGS_PER_CATEGORY} найбільш релевантних тегів.
+Не повертай повні списки можливих тегів.
+Пріоритет — точність і релевантність, а не повнота."""
+        
         # Load mode-specific template
         mode_filename = "test.txt" if dry_run else "prod.txt"
         mode_template = PromptLoader.load("tagging", filename=mode_filename)
@@ -98,6 +116,8 @@ Do not include any tags that are not in the ALLOWED TAGS list."""
         prompt = f"""{base_template}
 
 {policy_template}
+
+{limit_instruction}
 
 {mode_template}
 

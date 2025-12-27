@@ -38,18 +38,39 @@ class ConfluenceClient:
             logger.error(f"Error fetching page {page_id}: {e}")
             raise RuntimeError(f"Confluence API error (get_page): {e}")
 
-    def get_page_body(self, page_id: str) -> str:
-        """Отримати HTML-вміст сторінки."""
-        data = self.get_page(page_id)
+    async def get_page_body(self, page_id: str) -> str:
+        """
+        Отримати HTML-вміст сторінки.
+        
+        Args:
+            page_id: ID сторінки
+            
+        Returns:
+            HTML вміст сторінки
+        """
+        data = await self.get_page(page_id)
         return data.get("body", {}).get("storage", {}).get("value", "")
 
     @log_retry(attempts=3, backoff=1.0)
     @log_timing
-    def update_page(self, page_id: str, new_content: str) -> Dict[str, Any]:
-        """Оновити сторінку Confluence."""
+    async def update_page(self, page_id: str, new_content: str) -> Dict[str, Any]:
+        """
+        Оновити сторінку Confluence.
+        
+        Args:
+            page_id: ID сторінки
+            new_content: Новий HTML вміст
+            
+        Returns:
+            Dict з результатом оновлення
+        """
         logger.info(f"Updating page {page_id} in Confluence")
-        page = self.get_page(page_id)
+        
+        # Fetch current page (MUST await async method)
+        page = await self.get_page(page_id)
         current_version = page["version"]["number"]
+        
+        logger.debug(f"Current version: {current_version}, title: {page['title']}")
 
         url = f"{self.base_url}/wiki/rest/api/content/{page_id}"
 
@@ -75,9 +96,17 @@ class ConfluenceClient:
             raise RuntimeError(f"Confluence API error (update_page): {e}")
 
     @log_timing
-    def append_to_page(self, page_id: str, html_block: str) -> Dict[str, Any]:
-        """Додати HTML-блок у кінець сторінки."""
-
+    async def append_to_page(self, page_id: str, html_block: str) -> Dict[str, Any]:
+        """
+        Додати HTML блок в кінець існуючої сторінки.
+        
+        Args:
+            page_id: ID сторінки Confluence
+            html_block: HTML блок для додавання
+            
+        Returns:
+            Dict з результатом оновлення
+        """
         # HTML validation
         try:
             BeautifulSoup(html_block, "html.parser")
@@ -86,11 +115,25 @@ class ConfluenceClient:
             raise ValueError("Invalid HTML content")
 
         logger.info(f"Appending HTML block to page {page_id}")
-        page = self.get_page(page_id)
+        
+        # Fetch page (MUST await async method)
+        page = await self.get_page(page_id)
+        
+        # Log page structure for debugging
+        import json
+        logger.debug(f"Fetched page structure keys: {list(page.keys())}")
+        if "body" in page:
+            logger.debug(f"Page body keys: {list(page['body'].keys())}")
+        
+        # Extract current body
         current_body = page["body"]["storage"]["value"]
+        logger.debug(f"Current body length: {len(current_body)} chars")
+        
+        # Append new content
         new_body = current_body + "\n" + html_block
+        logger.info(f"New body length: {len(new_body)} chars (added {len(html_block)} chars)")
 
-        return self.update_page(page_id, new_body)
+        return await self.update_page(page_id, new_body)
 
     async def _get(self, url: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
         try:

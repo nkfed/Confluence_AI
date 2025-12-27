@@ -81,3 +81,41 @@ def is_label_allowed(label: str, section: str) -> bool:
         return label in allowed
     except KeyError:
         return False
+
+
+def get_default_labels() -> list[str]:
+    """
+    Get default labels for unknown sections (PROD mode fallback).
+    
+    Returns comprehensive set of common labels that can be used
+    when section is not identified.
+    
+    Returns:
+        List of default allowed labels
+    """
+    return [
+        # Document types
+        "doc-tech",
+        "doc-business",
+        "doc-process",
+        "doc-architecture",
+        "doc-design",
+        "doc-prompt-template",
+        "doc-knowledge-base",
+        "doc-onboarding",
+        
+        # Domains
+        "domain-helpdesk-site",
+        "domain-ai-integration",
+        "domain-rehab-2-0",
+        "domain-dzr",
+        
+        # Knowledge base roles
+        "kb-overview",
+        "kb-canonical",
+        "kb-components",
+        "kb-entities-hierarchy",
+        
+        # Tools
+        "tool-rovo-agent"
+    ]

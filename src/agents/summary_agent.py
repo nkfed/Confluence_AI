@@ -21,9 +21,14 @@ class SummaryAgent(BaseAgent):
     """Агент, який формує summary для сторінок Confluence."""
 
     def __init__(self, confluence_client: ConfluenceClient = None, openai_client: OpenAIClient = None):
-        super().__init__()
+        super().__init__(agent_name="SUMMARY_AGENT")
         self.confluence = confluence_client or ConfluenceClient()
         self.ai = openai_client or OpenAIClient()
+        
+        # Debug logging for mode verification
+        print(f"DEBUG: SummaryAgent initialized with mode={self.mode}")
+        print(f"DEBUG: SummaryAgent allowed_test_pages={self.allowed_test_pages}")
+        logger.info(f"SummaryAgent initialized: mode={self.mode}, allowed_pages={len(self.allowed_test_pages)}")
 
     @log_timing
     async def generate_summary(self, page_id: str) -> str:
@@ -97,10 +102,35 @@ class SummaryAgent(BaseAgent):
             f"<p>{result['summary'].replace('\n', '<br>')}</p>"
         )
 
-        updated_page = self.confluence.append_to_page(
+        # Centralized dry-run logic based on mode
+        if self.is_dry_run():
+            # TEST mode: dry-run, no Confluence changes
+            logger.info(f"[DRY-RUN] TEST mode - summary NOT written to Confluence")
+            logger.info(f"[DRY-RUN] Would append summary to page {page_id}")
+            logger.debug(f"[DRY-RUN] Summary HTML length: {len(summary_html)} chars")
+            
+            audit_logger.info(
+                f"action=update_page_with_summary page_id={page_id} mode={self.mode} status=dry_run"
+            )
+            
+            return {
+                "status": "dry_run",
+                "page_id": page_id,
+                "title": result["title"],
+                "summary_added": False,
+                "summary_tokens_estimate": result["summary_tokens_estimate"],
+                "message": "TEST mode - summary NOT written to Confluence"
+            }
+
+        # SAFE_TEST or PROD mode - actually update Confluence
+        logger.info(f"[{self.mode}] Appending summary to page {page_id}")
+        updated_page = await self.confluence.append_to_page(
             page_id=page_id,
             html_block=summary_html
         )
+        
+        logger.info(f"Summary appended to page {page_id}. Response keys: {list(updated_page.keys())}")
+        logger.debug(f"Confluence response: {updated_page.get('id')}, version: {updated_page.get('version', {}).get('number')}")
 
         audit_logger.info(
             f"action=update_page_with_summary page_id={page_id} mode={self.mode} status=success"
@@ -168,18 +198,21 @@ class SummaryAgent(BaseAgent):
         # Fallback condition 1: Empty content
         if not content or len(content.strip()) == 0:
             logger.info(f"Fallback to section tags for page {page_id}: empty content")
-            return list(allowed_labels)
+            # ✅ Apply limit to fallback tags
+            return self._limit_fallback_tags(allowed_labels)
         
         # Fallback condition 2: Low content WITHOUT tag patterns
         if len(content) < MIN_CONTENT_THRESHOLD and not has_tag_patterns:
             logger.info(f"Fallback to section tags for page {page_id}: low-content page (length={len(content)} < {MIN_CONTENT_THRESHOLD})")
-            return list(allowed_labels)
+            # ✅ Apply limit to fallback tags
+            return self._limit_fallback_tags(allowed_labels)
         
         # Fallback condition 3: Content with only hyperlinks (and no tag patterns)
         content_without_urls = re.sub(r'https?://[^\s]+', '', content)
         if len(content_without_urls.strip()) < MIN_CONTENT_THRESHOLD and not has_tag_patterns:
             logger.info(f"Fallback to section tags for page {page_id}: content contains mostly hyperlinks")
-            return list(allowed_labels)
+            # ✅ Apply limit to fallback tags
+            return self._limit_fallback_tags(allowed_labels)
         
         # Build prompt using PromptBuilder
         prompt = PromptBuilder.build_tag_tree_prompt(content, allowed_labels, dry_run)
@@ -189,11 +222,31 @@ class SummaryAgent(BaseAgent):
         ai_response = await self.ai.generate(prompt)
         logger.debug(f"AI response: {ai_response[:500]}")
         
-        # Parse AI response (expecting JSON with tags)
-        ai_tags = self._parse_tags_from_response(ai_response)
-        logger.info(f"AI suggested {len(ai_tags)} tags (with potential duplicates): {ai_tags}")
+        # Parse AI response (expecting JSON with tags by category)
+        ai_tags_dict = self._parse_tags_dict_from_response(ai_response)
+        logger.info(f"AI suggested tags by category: {ai_tags_dict}")
         
-        # Deduplicate while preserving order (BEFORE filtering)
+        # ✅ Step 1: Apply MAX_TAGS_PER_CATEGORY limit (post-processing)
+        from src.utils.tag_structure import limit_tags_per_category
+        from src.config.tagging_settings import MAX_TAGS_PER_CATEGORY
+        
+        limited_tags_dict = limit_tags_per_category(ai_tags_dict)
+        
+        if ai_tags_dict != limited_tags_dict:
+            logger.warning(
+                f"AI returned more than {MAX_TAGS_PER_CATEGORY} tags per category. "
+                f"Applied post-processing limit. Original: {ai_tags_dict}, Limited: {limited_tags_dict}"
+            )
+        
+        # ✅ Step 2: Flatten to list
+        ai_tags = []
+        for category_tags in limited_tags_dict.values():
+            if isinstance(category_tags, list):
+                ai_tags.extend(category_tags)
+        
+        logger.info(f"Flattened limited tags: {ai_tags} (count={len(ai_tags)})")
+        
+        # ✅ Step 3: Deduplicate while preserving order
         unique_tags = []
         for tag in ai_tags:
             if tag not in unique_tags:
@@ -203,7 +256,7 @@ class SummaryAgent(BaseAgent):
             duplicates_count = len(ai_tags) - len(unique_tags)
             logger.info(f"Removed {duplicates_count} duplicate tags. Deduplicated: {unique_tags}")
         
-        # Filter deduplicated tags to only include those in allowed_labels (AFTER dedupe)
+        # ✅ Step 4: Filter to only include allowed_labels
         filtered_tags = []
         for tag in unique_tags:
             if tag in allowed_labels:
@@ -217,29 +270,80 @@ class SummaryAgent(BaseAgent):
         
         return filtered_tags
     
+    def _parse_tags_dict_from_response(self, response: str) -> dict:
+        """
+        Parse tags from AI response as dictionary by category.
+        
+        Expects JSON format like:
+        {"doc": ["doc-tech"], "domain": ["domain-helpdesk-site"], ...}
+        
+        Returns dict with tags by category.
+        """
+        from src.config.tagging_settings import TAG_CATEGORIES
+        
+        # Try to extract JSON from response
+        match = re.search(r"\{.*\}", response, re.DOTALL)
+        if not match:
+            logger.warning("No JSON found in AI response")
+            return {cat: [] for cat in TAG_CATEGORIES}
+        
+        try:
+            data = json.loads(match.group(0))
+            # Ensure all categories exist
+            result = {cat: [] for cat in TAG_CATEGORIES}
+            for category in TAG_CATEGORIES:
+                if category in data and isinstance(data[category], list):
+                    result[category] = data[category]
+            return result
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON from AI response: {e}")
+            return {cat: [] for cat in TAG_CATEGORIES}
+    
     def _parse_tags_from_response(self, response: str) -> List[str]:
         """
-        Parse tags from AI response.
+        Parse tags from AI response (legacy method - flattens to list).
         
         Expects JSON format like:
         {"doc": ["doc-tech"], "domain": ["domain-helpdesk-site"], ...}
         
         Returns flat list of all tags.
         """
-        # Try to extract JSON from response
-        match = re.search(r"\{.*\}", response, re.DOTALL)
-        if not match:
-            logger.warning("No JSON found in AI response")
-            return []
+        tags_dict = self._parse_tags_dict_from_response(response)
+        # Flatten all tags
+        tags = []
+        for category_tags in tags_dict.values():
+            if isinstance(category_tags, list):
+                tags.extend(category_tags)
+        return tags
+    def _limit_fallback_tags(self, allowed_labels: List[str]) -> List[str]:
+        """
+        Обмежує fallback теги згідно з MAX_TAGS_PER_CATEGORY.
         
-        try:
-            data = json.loads(match.group(0))
-            # Flatten all tags from all categories
-            tags = []
-            for category_tags in data.values():
-                if isinstance(category_tags, list):
-                    tags.extend(category_tags)
-            return tags
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON from AI response: {e}")
-            return []
+        Для fallback (порожні сторінки, root pages) ми не можемо викликати AI,
+        тому повертаємо перші N тегів з кожної категорії з allowed_labels.
+        
+        Args:
+            allowed_labels: Список дозволених тегів
+            
+        Returns:
+            Обмежений список тегів (≤MAX_TAGS_PER_CATEGORY на категорію)
+        """
+        from src.config.tagging_settings import MAX_TAGS_PER_CATEGORY, TAG_CATEGORIES
+        
+        # Group by category
+        by_category = {cat: [] for cat in TAG_CATEGORIES}
+        for label in allowed_labels:
+            for cat in TAG_CATEGORIES:
+                if label.startswith(f"{cat}-"):
+                    by_category[cat].append(label)
+                    break
+        
+        # Limit each category
+        limited_tags = []
+        for cat in TAG_CATEGORIES:
+            cat_tags = by_category[cat][:MAX_TAGS_PER_CATEGORY]
+            limited_tags.extend(cat_tags)
+        
+        logger.info(f"Fallback tags limited from {len(allowed_labels)} to {len(limited_tags)} (≤{MAX_TAGS_PER_CATEGORY} per category)")
+        
+        return limited_tags

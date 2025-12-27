@@ -54,6 +54,19 @@ async def tag_tree(
     - **dry_run**: When True, simulates tagging without applying changes
     
     Recursively collects all child pages and applies tagging to the entire tree.
+    
+    **Unified Response Structure (per page):**
+    - `page_id`: Confluence page ID
+    - `title`: Page title
+    - `status`: "updated", "dry_run", "no_changes", or "error"
+    - `skipped`: Boolean indicating if page was skipped
+    - `tags`: Unified tag structure:
+      - `proposed`: AI-generated tags
+      - `existing`: Current page labels
+      - `to_add`: Tags to be added (populated in dry-run mode)
+      - `added`: Tags actually added (populated in real update mode)
+    - `dry_run`: Boolean indicating if this was a dry run
+    
     Returns statistics about successful, skipped, and failed tagging operations.
     """
     logger.info(f"POST /bulk/tag-tree/{root_page_id} called with dry_run={dry_run}")
