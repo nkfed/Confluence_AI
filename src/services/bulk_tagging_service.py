@@ -16,7 +16,7 @@ class BulkTaggingService:
         from src.agents.tagging_agent import TaggingAgent
         self.agent = TaggingAgent()
 
-    async def tag_pages(self, page_ids: list[str], dry_run: bool = None) -> dict:
+    async def tag_pages(self, page_ids: list[str], dry_run: bool = None, allowed_ids: set = None) -> dict:
         """
         Bulk tag multiple pages with режимна матриця enforcement.
         
@@ -28,6 +28,7 @@ class BulkTaggingService:
         Args:
             page_ids: List of Confluence page IDs
             dry_run: Optional override. If None, uses agent.is_dry_run()
+            allowed_ids: Optional set of allowed page IDs (overrides .env whitelist)
         """
         # Determine final dry_run value
         if dry_run is None:
@@ -43,7 +44,8 @@ class BulkTaggingService:
 
         logger.info(
             f"[Bulk] Starting tagging for {len(page_ids)} pages "
-            f"(mode={self.agent.mode}, dry_run={dry_run})"
+            f"(mode={self.agent.mode}, dry_run={dry_run}, "
+            f"allowed_ids={'custom' if allowed_ids is not None else 'from .env'})"
         )
 
         # Process all pages - policy checks will be done per-page
@@ -108,8 +110,19 @@ class BulkTaggingService:
                     continue
                 
                 # Real update mode: check policy FIRST
+                # Use allowed_ids if provided, otherwise use .env whitelist
                 try:
-                    self.agent.enforce_page_policy(page_id)
+                    if allowed_ids is not None:
+                        # Custom whitelist (from WhitelistManager)
+                        page_id_int = int(page_id)
+                        if self.agent.mode in ["TEST", "SAFE_TEST"] and page_id_int not in allowed_ids:
+                            raise PermissionError(
+                                f"Page {page_id} not in whitelist for mode {self.agent.mode}"
+                            )
+                        logger.debug(f"[Bulk] Page {page_id} allowed by custom whitelist")
+                    else:
+                        # Legacy .env whitelist check
+                        self.agent.enforce_page_policy(page_id)
                 except PermissionError as e:
                     logger.warning(f"[Bulk] Page {page_id} blocked by policy: {e}")
                     results.append({
@@ -120,18 +133,22 @@ class BulkTaggingService:
                     })
                     continue
                 
-                # Policy check passed - update labels
+                # Policy check passed - now check if we should actually write
                 if to_add:
-                    logger.info(f"[Bulk] Updating labels for page {page_id}: adding {list(to_add)}")
-                    await self.confluence.update_labels(page_id, list(to_add))
-                    logger.info(f"[Bulk] Successfully updated labels for page {page_id}")
+                    if not dry_run:
+                        # Real update mode
+                        logger.info(f"[Bulk] Updating labels for page {page_id}: adding {list(to_add)}")
+                        await self.confluence.update_labels(page_id, list(to_add))
+                        logger.info(f"[Bulk] Successfully updated labels for page {page_id}")
+                    else:
+                        logger.info(f"[Bulk] [DRY-RUN] Would update labels for page {page_id}: {list(to_add)}")
                 else:
                     logger.info(f"[Bulk] No new labels to add for page {page_id}")
                 
                 success_count += 1
                 results.append({
                     "page_id": page_id,
-                    "status": "updated",
+                    "status": "updated" if not dry_run else "dry_run",
                     "tags": {
                         "proposed": list(proposed),
                         "existing": list(existing),
@@ -408,12 +425,12 @@ class BulkTaggingService:
 
     async def tag_space(self, space_key: str, dry_run: Optional[bool] = None) -> dict:
         """
-        Tag all pages in a Confluence space using AI.
+        Tag all pages in a Confluence space using AI with centralized whitelist support.
         
-        Respects TAGGING_AGENT_MODE:
-        - TEST: dry-run (no updates)
-        - SAFE_TEST: whitelist only
-        - PROD: all pages
+        Режимна матриця з whitelist:
+        - TEST: dry-run + тільки whitelist сторінки
+        - SAFE_TEST: реальні зміни + тільки whitelist сторінки
+        - PROD: реальні зміни + всі сторінки (whitelist ігнорується)
         
         Args:
             space_key: Confluence space key
@@ -425,29 +442,106 @@ class BulkTaggingService:
                 "processed": int,
                 "success": int,
                 "errors": int,
+                "skipped_by_whitelist": int,
                 "dry_run": bool,
+                "mode": str,
+                "whitelist_enabled": bool,
                 "details": [...]
             }
         """
+        from src.core.whitelist import WhitelistManager
+        
         # Use agent mode if dry_run not explicitly set
         if dry_run is None:
             dry_run = self.agent.is_dry_run()
-            logger.info(f"[Bulk] Using agent mode: {self.agent.mode}, dry_run={dry_run}")
+            logger.info(f"[tag-space] Using agent mode: {self.agent.mode}, dry_run={dry_run}")
         else:
-            logger.info(f"[Bulk] Using explicit dry_run={dry_run}")
+            logger.info(f"[tag-space] Using explicit dry_run={dry_run}")
         
-        logger.info(f"[Bulk] Fetching all pages in space '{space_key}'")
+        mode = self.agent.mode
+        logger.info(f"[tag-space] Starting tag-space for '{space_key}' in mode={mode}, dry_run={dry_run}")
         
+        # Ініціалізація WhitelistManager
+        whitelist_manager = WhitelistManager()
+        
+        # ✅ Нова логіка: whitelist завжди застосовується для tag-space
+        # Режимна матриця для tag-space:
+        # - TEST: whitelist scope + dry_run завжди True
+        # - SAFE_TEST: whitelist scope + dry_run керує записом
+        # - PROD: whitelist scope + dry_run керує записом
+        whitelist_enabled = True  # Завжди використовуємо whitelist для tag-space
+        
+        logger.info(
+            f"[TagSpace] Using whitelist for scope in mode={mode}, dry_run={dry_run}. "
+            f"Whitelist controls which pages are processed, dry_run controls whether to write."
+        )
+        
+        # Завантаження дозволених ID (завжди для tag-space)
         try:
-            page_ids = await self.confluence.get_all_pages_in_space(space_key)
+            allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
+            logger.info(
+                f"[TagSpace] Whitelist loaded: {len(allowed_ids)} allowed pages for {space_key}"
+            )
+            logger.debug(
+                f"[TagSpace] Allowed IDs (first 20): {sorted(list(allowed_ids))[:20]}"
+            )
+            
+            if not allowed_ids:
+                logger.warning(
+                    f"[TagSpace] No whitelist entries found for {space_key}. "
+                    f"Configure whitelist in whitelist_config.json to process pages."
+                )
+                return {
+                    "total": 0,
+                    "processed": 0,
+                    "success": 0,
+                    "errors": 0,
+                    "skipped_by_whitelist": 0,
+                    "dry_run": dry_run,
+                    "mode": mode,
+                    "whitelist_enabled": whitelist_enabled,
+                    "details": [{
+                        "space_key": space_key,
+                        "status": "error",
+                        "message": f"No whitelist entries for space {space_key}. Add entries to whitelist_config.json",
+                        "tags": None
+                    }]
+                }
         except Exception as e:
-            logger.error(f"[Bulk] Failed to fetch pages from space '{space_key}': {e}")
+            logger.error(f"[TagSpace] Failed to load whitelist: {e}")
             return {
                 "total": 0,
                 "processed": 0,
                 "success": 0,
                 "errors": 1,
+                "skipped_by_whitelist": 0,
                 "dry_run": dry_run,
+                "mode": mode,
+                "whitelist_enabled": whitelist_enabled,
+                "details": [{
+                    "space_key": space_key,
+                    "status": "error",
+                    "message": f"Failed to load whitelist: {str(e)}",
+                    "tags": None
+                }]
+            }
+        
+        # Завантаження всіх сторінок простору
+        logger.info(f"[tag-space] Fetching all pages in space '{space_key}'")
+        
+        try:
+            page_ids = await self.confluence.get_all_pages_in_space(space_key)
+        except Exception as e:
+            logger.error(f"[tag-space] Failed to fetch pages from space '{space_key}': {e}")
+            return {
+                "total": 0,
+                "processed": 0,
+                "success": 0,
+                "errors": 1,
+                "skipped_by_whitelist": 0,
+                "dry_run": dry_run,
+                "mode": mode,
+                "whitelist_enabled": whitelist_enabled,
                 "details": [{
                     "space_key": space_key,
                     "status": "error",
@@ -457,13 +551,16 @@ class BulkTaggingService:
             }
         
         if not page_ids:
-            logger.warning(f"[Bulk] No pages found in space '{space_key}'")
+            logger.warning(f"[tag-space] No pages found in space '{space_key}'")
             return {
                 "total": 0,
                 "processed": 0,
                 "success": 0,
                 "errors": 0,
+                "skipped_by_whitelist": 0,
                 "dry_run": dry_run,
+                "mode": mode,
+                "whitelist_enabled": whitelist_enabled,
                 "details": [{
                     "space_key": space_key,
                     "status": "error",
@@ -472,5 +569,38 @@ class BulkTaggingService:
                 }]
             }
         
-        logger.info(f"[Bulk] Found {len(page_ids)} pages in space '{space_key}'")
-        return await self.tag_pages(page_ids, dry_run=dry_run)
+        logger.info(f"[TagSpace] Found {len(page_ids)} total pages in space '{space_key}'")
+        
+        # Фільтрація за whitelist (завжди для tag-space)
+        pages_to_process = []
+        skipped_by_whitelist = 0
+        
+        for page_id in page_ids:
+            page_id_int = int(page_id)
+            
+            # Завжди перевіряємо whitelist для tag-space
+            if whitelist_manager.is_allowed(space_key, page_id_int, allowed_ids):
+                pages_to_process.append(page_id)
+            else:
+                skipped_by_whitelist += 1
+        
+        logger.info(
+            f"[TagSpace] After whitelist filter: {len(pages_to_process)} to process, "
+            f"{skipped_by_whitelist} skipped. "
+            f"Mode={mode}, dry_run={dry_run}"
+        )
+        
+        # Обробка сторінок з передачею allowed_ids (завжди передаємо для tag-space)
+        result = await self.tag_pages(
+            pages_to_process, 
+            dry_run=dry_run,
+            allowed_ids=allowed_ids
+        )
+        
+        # Додаємо інформацію про whitelist
+        result["skipped_by_whitelist"] = skipped_by_whitelist
+        result["mode"] = mode
+        result["whitelist_enabled"] = whitelist_enabled
+        
+        return result
+
