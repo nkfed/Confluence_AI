@@ -102,15 +102,44 @@ class AgentModeResolver:
         Returns:
             True якщо зміни дозволені
         """
+        from src.core.logging.logger import get_logger
+        logger = get_logger(__name__)
+        
         if mode == AgentMode.PROD:
+            logger.debug(f"[AgentModeResolver] PROD mode - allowing page {page_id}")
             return True
         
         if mode == AgentMode.SAFE_TEST:
-            return page_id in whitelist
+            # ✅ Конвертуємо page_id в int для порівняння
+            try:
+                page_id_int = int(page_id)
+            except (ValueError, TypeError):
+                logger.error(f"[AgentModeResolver] Invalid page_id: {page_id}")
+                return False
+            
+            # ✅ Конвертуємо whitelist в int якщо потрібно
+            whitelist_ints = []
+            for item in whitelist:
+                try:
+                    if isinstance(item, int):
+                        whitelist_ints.append(item)
+                    else:
+                        whitelist_ints.append(int(item))
+                except (ValueError, TypeError):
+                    logger.warning(f"[AgentModeResolver] Skipping invalid whitelist item: {item}")
+            
+            result = page_id_int in whitelist_ints
+            logger.info(
+                f"[AgentModeResolver] SAFE_TEST mode - page_id={page_id_int}, "
+                f"whitelist={whitelist_ints[:10]}, allowed={result}"
+            )
+            return result
         
         if mode == AgentMode.TEST:
+            logger.debug(f"[AgentModeResolver] TEST mode - blocking page {page_id} (dry-run only)")
             return False  # Dry-run only, no actual changes
         
+        logger.warning(f"[AgentModeResolver] Unknown mode '{mode}' - blocking page {page_id}")
         return False
     
     @staticmethod

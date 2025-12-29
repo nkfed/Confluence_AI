@@ -3,7 +3,7 @@ from src.api.routers.health import router as health_router
 from src.api.routers.summary import router as summary_router
 from src.api.routers.tagging import router as tagging_router
 from src.api.routers.bulk import router as bulk_router
-from src.api.routers.bulk_tagging_router import router as bulk_tagging_router
+# from src.api.routers.bulk_tagging_router import router as bulk_tagging_router  # Deprecated: use bulk_router instead
 from src.api.routers.spaces import router as spaces_router
 from src.api.routers.spaces_meta import router as spaces_meta_router
 from src.api.routers.bulk_reset_tags import router as bulk_reset_tags_router
@@ -23,7 +23,7 @@ app.include_router(health_router)
 app.include_router(summary_router)
 app.include_router(tagging_router)
 app.include_router(bulk_router)
-app.include_router(bulk_tagging_router)
+# app.include_router(bulk_tagging_router)  # Deprecated: conflicts with bulk_router
 app.include_router(spaces_router)
 app.include_router(spaces_meta_router)
 app.include_router(bulk_reset_tags_router)

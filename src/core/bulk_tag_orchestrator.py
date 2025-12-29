@@ -1,4 +1,30 @@
 """
+⚠️  DEPRECATED MODULE ⚠️
+
+BulkTagOrchestrator is DEPRECATED and replaced by BulkTaggingService.
+
+DO NOT USE THIS CLASS FOR NEW DEVELOPMENT.
+
+Reason for deprecation:
+- Uses old whitelist mechanism (AgentModeResolver + env vars)
+- Does not use WhitelistManager or whitelist_config.json
+- In PROD mode, ignores whitelist completely
+- Does not support unified dry_run matrix
+- Does not support task_id for cancellation
+- Uses deprecated exclude_* parameters
+
+Use instead:
+    from src.services.bulk_tagging_service import BulkTaggingService
+    service = BulkTaggingService()
+    result = await service.tag_space(space_key=space_key, dry_run=dry_run)
+
+Kept temporarily for backward compatibility.
+Will be removed in future versions.
+
+---
+
+OLD DOCUMENTATION (for reference only):
+
 BulkTagOrchestrator — оркестратор для bulk-тегування просторів Confluence.
 
 Відповідальність:
@@ -25,8 +51,13 @@ from settings import AgentMode
 logger = get_logger(__name__)
 
 
+# DEPRECATED — use BulkTaggingService instead
+# See module docstring for details
 class BulkTagOrchestrator:
-    """Оркестратор для bulk-тегування просторів."""
+    """Оркестратор для bulk-тегування просторів.
+    
+    ⚠️  DEPRECATED: Use BulkTaggingService instead.
+    """
     
     AGENT_NAME = "TAGGING_AGENT"
     

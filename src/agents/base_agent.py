@@ -79,7 +79,7 @@ class BaseAgent(ABC):
         
         return False
 
-    def enforce_page_policy(self, page_id: str):
+    def enforce_page_policy(self, page_id: str, allowed_pages: list = None):
         """
         Enforce page MODIFICATION policy using AgentModeResolver.
         
@@ -89,23 +89,32 @@ class BaseAgent(ABC):
         
         Args:
             page_id: Confluence page ID
+            allowed_pages: Optional list of allowed page IDs (overrides self.allowed_test_pages)
             
         Raises:
             PermissionError: If page MODIFICATION is not allowed
         """
+        # ✅ Використовуємо переданий список або внутрішній
+        effective_allowed_pages = allowed_pages if allowed_pages is not None else self.allowed_test_pages
+        
+        logger.debug(
+            f"[BaseAgent] enforce_page_policy: page_id={page_id}, mode={self.mode}, "
+            f"allowed_pages={effective_allowed_pages[:5] if effective_allowed_pages else []}"
+        )
+        
         # Use AgentModeResolver for proper policy check
-        if not AgentModeResolver.can_modify_confluence(self.mode, page_id, self.allowed_test_pages):
+        if not AgentModeResolver.can_modify_confluence(self.mode, page_id, effective_allowed_pages):
             security_logger.warning(
                 f"POLICY VIOLATION: Attempt to modify forbidden page_id={page_id} "
                 f"in mode={self.mode}"
             )
             audit_logger.warning(
                 f"action=modify_page page_id={page_id} mode={self.mode} "
-                f"status=denied allowed_pages={self.allowed_test_pages}"
+                f"status=denied allowed_pages={effective_allowed_pages}"
             )
             raise PermissionError(
                 f"Modifying page {page_id} is forbidden in {self.mode} mode. "
-                f"Allowed in PROD (all) or SAFE_TEST (whitelist: {self.allowed_test_pages})"
+                f"Allowed in PROD (all) or SAFE_TEST (whitelist: {effective_allowed_pages})"
             )
 
         audit_logger.info(
