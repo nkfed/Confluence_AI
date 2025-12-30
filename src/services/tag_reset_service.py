@@ -72,6 +72,128 @@ class TagResetService:
         
         return filtered
     
+    async def collect_tree_pages(self, root_page_id: str) -> List[str]:
+        """
+        Рекурсивно збирає всі ID сторінок дерева починаючи з root_page_id.
+        
+        Args:
+            root_page_id: ID кореневої сторінки
+            
+        Returns:
+            Список ID всіх сторінок у дереві
+        """
+        logger.info(f"Collecting tree pages from root {root_page_id}")
+        
+        to_process = [root_page_id]
+        collected = []
+        
+        while to_process:
+            current_id = to_process.pop(0)
+            collected.append(current_id)
+            
+            try:
+                children = await self.confluence.get_child_pages(current_id)
+                to_process.extend(children)
+                logger.debug(f"Page {current_id} has {len(children)} children")
+            except Exception as e:
+                logger.warning(f"Failed to get children for page {current_id}: {e}")
+        
+        logger.info(f"Collected {len(collected)} pages in tree")
+        return collected
+    
+    async def reset_tree_tags(
+        self,
+        page_ids: List[str],
+        categories: Optional[List[str]] = None,
+        dry_run: bool = True
+    ) -> Dict[str, Any]:
+        """
+        Скидає теги на сторінках у дереві (page_ids).
+        
+        Args:
+            page_ids: Список ID сторінок
+            categories: Категорії тегів для видалення (None = всі AI-теги)
+            dry_run: Чи це dry-run режим
+            
+        Returns:
+            {
+                "total": int,
+                "processed": int,
+                "removed": int,
+                "no_tags": int,
+                "errors": int,
+                "dry_run": bool,
+                "details": List[Dict]
+            }
+        """
+        logger.info(f"Resetting tags on {len(page_ids)} pages in tree, dry_run={dry_run}")
+        
+        total = len(page_ids)
+        processed = 0
+        removed_count = 0
+        no_tags_count = 0
+        errors = 0
+        details = []
+        
+        for page_id in page_ids:
+            try:
+                # Отримати інформацію про сторінку
+                page_info = await self.confluence.get_page(page_id, expand="")
+                page_title = page_info.get("title", "Unknown")
+                
+                result = await self.reset_page_tags(
+                    page_id=page_id,
+                    page_title=page_title,
+                    categories=categories,
+                    dry_run=dry_run
+                )
+                
+                details.append(result)
+                processed += 1
+                
+                status = result.get("status")
+                if status == "removed" or status == "dry_run":
+                    removed_count += 1
+                elif status == "no_tags":
+                    no_tags_count += 1
+                elif status == "error":
+                    errors += 1
+                    
+            except Exception as e:
+                logger.error(f"Error processing page {page_id} in tree: {e}")
+                tags_field = "to_remove_tags" if dry_run else "removed_tags"
+                error_detail = {
+                    "page_id": page_id,
+                    "title": "Unknown",
+                    "status": "error",
+                    "error": str(e),
+                    tags_field: [],
+                    "skipped": True
+                }
+                details.append(error_detail)
+                errors += 1
+                processed += 1
+        
+        # Build summary with appropriate fields based on dry_run mode
+        summary = {
+            "total": total,
+            "processed": processed,
+            "no_tags": no_tags_count,
+            "errors": errors,
+            "dry_run": dry_run,
+            "details": details
+        }
+        
+        # Add removed or to_remove based on dry_run mode
+        if dry_run:
+            summary["removed"] = 0
+            summary["to_remove"] = removed_count
+        else:
+            summary["removed"] = removed_count
+        
+        logger.info(f"Tree reset complete: {removed_count} pages processed, {errors} errors")
+        return summary
+    
     async def reset_page_tags(
         self,
         page_id: str,
@@ -108,11 +230,13 @@ class TagResetService:
             
             if not tags_to_remove:
                 logger.info(f"No AI tags to remove on page {page_id}")
+                # Use appropriate field name based on dry_run mode
+                tags_field = "to_remove_tags" if dry_run else "removed_tags"
                 return {
                     "page_id": page_id,
                     "title": page_title,
                     "status": "no_tags",
-                    "removed_tags": [],
+                    tags_field: [],
                     "skipped": False
                 }
             
@@ -123,7 +247,7 @@ class TagResetService:
                     "page_id": page_id,
                     "title": page_title,
                     "status": "dry_run",
-                    "removed_tags": tags_to_remove,
+                    "to_remove_tags": tags_to_remove,  # renamed for dry_run clarity
                     "skipped": False
                 }
             
@@ -141,12 +265,13 @@ class TagResetService:
             
         except Exception as e:
             logger.error(f"Error resetting tags for page {page_id}: {e}")
+            tags_field = "to_remove_tags" if dry_run else "removed_tags"
             return {
                 "page_id": page_id,
                 "title": page_title,
                 "status": "error",
                 "error": str(e),
-                "removed_tags": [],
+                tags_field: [],
                 "skipped": True
             }
     
@@ -206,15 +331,22 @@ class TagResetService:
             elif status == "error":
                 errors += 1
         
+        # Build summary with appropriate fields based on dry_run mode
         summary = {
             "total": total,
             "processed": processed,
-            "removed": removed_count,
             "no_tags": no_tags_count,
             "errors": errors,
             "dry_run": dry_run,
             "details": details
         }
+        
+        # Add removed or to_remove based on dry_run mode
+        if dry_run:
+            summary["removed"] = 0
+            summary["to_remove"] = removed_count
+        else:
+            summary["removed"] = removed_count
         
         logger.info(f"Reset complete: {removed_count} pages processed, {errors} errors")
         return summary

@@ -24,10 +24,24 @@ class ConfluenceClient:
 
     @log_retry(attempts=3, backoff=1.0)
     @log_timing
-    async def get_page(self, page_id: str) -> Dict[str, Any]:
-        """Отримати сторінку Confluence у форматі storage."""
-        logger.info(f"Fetching page {page_id} from Confluence")
-        url = f"{self.base_url}/wiki/rest/api/content/{page_id}?expand=body.storage,version"
+    async def get_page(self, page_id: str, expand: str = "body.storage,version") -> Dict[str, Any]:
+        """
+        Отримати сторінку Confluence.
+        
+        Args:
+            page_id: ID сторінки
+            expand: Параметри expand (за замовчуванням "body.storage,version")
+                    Можливі значення: "space", "version", "body.storage", "" (без expand)
+        
+        Returns:
+            Dict з даними сторінки
+        """
+        logger.info(f"Fetching page {page_id} from Confluence (expand={expand})")
+        url = f"{self.base_url}/wiki/rest/api/content/{page_id}"
+        
+        # Додаємо expand тільки якщо він не порожній
+        if expand:
+            url += f"?expand={expand}"
 
         try:
             response = requests.get(url, auth=self.auth, headers=self.headers, timeout=10)

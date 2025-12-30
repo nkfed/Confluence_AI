@@ -92,10 +92,12 @@ async def test_reset_page_tags_dry_run():
     
     # Verify dry-run
     assert result["status"] == "dry_run"
-    assert len(result["removed_tags"]) == 2  # Only AI tags
-    assert "doc-tech" in result["removed_tags"]
-    assert "domain-helpdesk-site" in result["removed_tags"]
-    assert "custom-tag" not in result["removed_tags"]
+    assert "to_remove_tags" in result  # dry_run uses to_remove_tags
+    assert "removed_tags" not in result  # not removed_tags
+    assert len(result["to_remove_tags"]) == 2  # Only AI tags
+    assert "doc-tech" in result["to_remove_tags"]
+    assert "domain-helpdesk-site" in result["to_remove_tags"]
+    assert "custom-tag" not in result["to_remove_tags"]
     
     # Verify no actual removal
     mock_client.remove_labels.assert_not_called()
@@ -146,6 +148,7 @@ async def test_reset_page_tags_no_tags():
     
     # Verify no removal needed
     assert result["status"] == "no_tags"
+    assert "removed_tags" in result  # dry_run=False uses removed_tags
     assert len(result["removed_tags"]) == 0
 
 
@@ -169,10 +172,11 @@ async def test_reset_page_tags_category_filter():
     )
     
     # Verify only doc tags
-    assert len(result["removed_tags"]) == 2
-    assert "doc-tech" in result["removed_tags"]
-    assert "doc-business" in result["removed_tags"]
-    assert "domain-helpdesk-site" not in result["removed_tags"]
+    assert "to_remove_tags" in result  # dry_run=True
+    assert len(result["to_remove_tags"]) == 2
+    assert "doc-tech" in result["to_remove_tags"]
+    assert "doc-business" in result["to_remove_tags"]
+    assert "domain-helpdesk-site" not in result["to_remove_tags"]
 
 
 @pytest.mark.asyncio
@@ -202,7 +206,8 @@ async def test_reset_space_tags():
     # Verify summary
     assert result["total"] == 3
     assert result["processed"] == 3
-    assert result["removed"] == 2  # Pages 1 and 2
+    assert result["removed"] == 0  # dry_run=True -> removed is always 0
+    assert result["to_remove"] == 2  # Pages 1 and 2 would be processed
     assert result["no_tags"] == 1  # Page 3
     assert result["errors"] == 0
     assert result["dry_run"] is True
