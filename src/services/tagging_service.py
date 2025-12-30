@@ -1,6 +1,7 @@
 from typing import Optional
 from src.agents.tagging_agent import TaggingAgent
 from src.clients.confluence_client import ConfluenceClient
+from src.core.ai.router import router
 from src.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -22,7 +23,8 @@ def flatten_tags(tag_dict: dict[str, list[str]]) -> list[str]:
 class TaggingService:
     def __init__(self, confluence_client: ConfluenceClient = None, tagging_agent: TaggingAgent = None):
         self.confluence = confluence_client or ConfluenceClient()
-        self.agent = tagging_agent or TaggingAgent()
+        # Use global router for AI calls
+        self.agent = tagging_agent or TaggingAgent(ai_router=router)
 
     async def auto_tag_page(self, page_id: str, space_key: Optional[str] = None, dry_run: Optional[bool] = None) -> dict:
         """

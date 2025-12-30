@@ -14,7 +14,8 @@ from typing import Any, Callable, Awaitable, Optional
 from src.core.logging.logger import get_logger
 from src.core.ai.costs import CostCalculator
 
-logger = get_logger(__name__)
+# Use AI logger explicitly
+logger = get_logger("ai")
 
 
 async def log_ai_call(
@@ -59,6 +60,9 @@ async def log_ai_call(
     """
     start = time.time()
     calculator = CostCalculator()
+    
+    # Debug: Verify log_ai_call is invoked
+    logger.info(f"[DEBUG] log_ai_call invoked: provider={provider_name}, model={model}, operation={operation}")
     
     try:
         # Execute AI operation
