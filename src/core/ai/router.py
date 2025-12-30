@@ -319,6 +319,49 @@ class AIProviderRouter:
             },
             "all_providers_ok": health_report.all_ok,
         }
+    
+    @classmethod
+    def from_settings(cls, settings):
+        """
+        Create AIProviderRouter from settings.
+        
+        Factory method that creates a router instance with providers
+        configured from settings.
+        
+        Args:
+            settings: AISettings instance with provider configuration
+            
+        Returns:
+            AIProviderRouter: Configured router instance
+        """
+        router = cls(
+            default_provider=settings.DEFAULT_AI_PROVIDER,
+            fallback_provider=settings.FALLBACK_AI_PROVIDER,
+            auto_register=False
+        )
+        
+        # Register OpenAI provider if API key is available
+        from src.core.ai.openai_client import OpenAIClient
+        if settings.OPENAI_API_KEY:
+            router.register(
+                "openai",
+                OpenAIClient(settings.OPENAI_API_KEY, settings.OPENAI_MODEL)
+            )
+        
+        # Register Gemini provider if API key is available
+        from src.core.ai.gemini_client import GeminiClient
+        if settings.GEMINI_API_KEY:
+            router.register(
+                "gemini",
+                GeminiClient(settings.GEMINI_API_KEY, settings.GEMINI_MODEL)
+            )
+        
+        return router
 
 
-__all__ = ["AIProviderRouter"]
+__all__ = ["AIProviderRouter", "router"]
+
+# Global router instance
+from src.core.config.ai_settings import AISettings
+
+router = AIProviderRouter.from_settings(AISettings())
