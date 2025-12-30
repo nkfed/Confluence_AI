@@ -5,6 +5,7 @@ from src.agents.base_agent import BaseAgent
 from src.utils.prompt_loader import PromptLoader
 from src.clients.openai_client import OpenAIClient
 from src.core.ai.router import AIProviderRouter
+from src.core.ai.logging_utils import log_ai_call
 from src.core.logging.logger import get_logger
 from src.utils.tag_structure import limit_tags_per_category
 from src.config.tagging_settings import MAX_TAGS_PER_CATEGORY
@@ -122,10 +123,15 @@ tool-теги:
 
         logger.debug(f"Tagging prompt length: {len(prompt)}")
 
-        # Use router if available, otherwise legacy OpenAI client
+        # Use router if available with unified logging
         if self._ai_router is not None:
             provider = self._ai_router.get(self._ai_provider)
-            ai_response = await provider.generate(prompt)
+            ai_response = await log_ai_call(
+                provider_name=provider.name,
+                model=provider.model_default,
+                operation="tagging",
+                coro=lambda: provider.generate(prompt)
+            )
             raw = ai_response.text
             logger.debug(f"[TaggingAgent] AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
         else:

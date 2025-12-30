@@ -6,6 +6,7 @@ from src.core.ai.gemini_client import GeminiClient
 from src.core.ai.router import AIProviderRouter
 from src.core.ai.rate_limit import RateLimitConfig, SimpleRateLimiter
 from src.core.ai.costs import CostConfig, CostEstimate, CostCalculator
+from src.core.ai.logging_utils import log_ai_call
 from src.core.ai.health import (
     ProviderHealth,
     AIHealthReport,
@@ -26,6 +27,7 @@ __all__ = [
     "CostConfig",
     "CostEstimate",
     "CostCalculator",
+    "log_ai_call",
     "ProviderHealth",
     "AIHealthReport",
     "check_ai_health",

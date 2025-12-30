@@ -4,6 +4,7 @@ from .prompt_builder import PromptBuilder
 from src.clients.confluence_client import ConfluenceClient
 from src.clients.openai_client import OpenAIClient
 from src.core.ai.router import AIProviderRouter
+from src.core.ai.logging_utils import log_ai_call
 from src.utils.html_to_text import html_to_text
 from src.utils.token_counter import estimate_tokens_count
 from src.core.logging.logger import get_logger, audit_logger
@@ -73,9 +74,14 @@ class SummaryAgent(BaseAgent):
 
         logger.info("Step 5: Calling AI provider")
         if self._ai_router is not None:
-            # Use router
+            # Use router with unified logging
             provider = self._ai_router.get(self._ai_provider)
-            ai_response = await provider.generate(prompt)
+            ai_response = await log_ai_call(
+                provider_name=provider.name,
+                model=provider.model_default,
+                operation="summary",
+                coro=lambda: provider.generate(prompt)
+            )
             summary = ai_response.text
             logger.info(f"Step 5.1: AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
         else:
