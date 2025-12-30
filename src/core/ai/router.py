@@ -9,6 +9,7 @@ from typing import Dict, Optional, Any
 from src.core.ai.interface import AIProvider, AIResponse
 from src.core.ai.openai_client import OpenAIClient
 from src.core.ai.gemini_client import GeminiClient
+from src.core.ai.errors import ProviderUnavailableError, FallbackFailedError
 from src.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
@@ -151,39 +152,47 @@ class AIProviderRouter:
             AIResponse: Standardized response with generated text
             
         Raises:
-            ValueError: If specified provider is not configured
-            RuntimeError: If generation fails and no fallback is available
+            ProviderUnavailableError: If provider is not configured or unavailable
+            FallbackFailedError: If both primary and fallback providers fail
         """
         provider_name = provider or self._default
         
+        # 1. Get primary provider
         try:
             logger.info(f"Generating with provider: {provider_name}")
             client = self.get(provider_name)
+        except ValueError as exc:
+            raise ProviderUnavailableError(str(exc)) from exc
+        
+        # 2. Primary attempt
+        try:
             response = await client.generate(prompt, **kwargs)
             logger.info(f"Successfully generated with {provider_name}")
             return response
             
-        except Exception as e:
-            logger.warning(f"Provider {provider_name} failed: {e}")
+        except Exception as primary_exc:
+            logger.warning(f"Provider {provider_name} failed: {primary_exc}")
             
-            # Try fallback if configured and not already using fallback
-            if self._fallback and provider_name != self._fallback:
-                logger.info(f"Attempting fallback to: {self._fallback}")
-                try:
-                    fallback_client = self.get(self._fallback)
-                    response = await fallback_client.generate(prompt, **kwargs)
-                    logger.info(f"Successfully generated with fallback {self._fallback}")
-                    return response
-                except Exception as fallback_error:
-                    logger.error(f"Fallback provider {self._fallback} also failed: {fallback_error}")
-                    raise RuntimeError(
-                        f"Both primary ({provider_name}) and fallback ({self._fallback}) "
-                        f"providers failed"
-                    ) from fallback_error
+            # If no fallback configured or fallback is same as primary -> raise error
+            if not self._fallback or self._fallback == provider_name:
+                raise ProviderUnavailableError(
+                    f"Primary provider '{provider_name}' failed: {primary_exc}"
+                ) from primary_exc
             
-            # No fallback available or fallback not configured
-            logger.error(f"Generation failed with {provider_name} and no fallback available")
-            raise
+            # 3. Fallback attempt
+            logger.info(f"Attempting fallback to: {self._fallback}")
+            try:
+                fallback_client = self.get(self._fallback)
+                response = await fallback_client.generate(prompt, **kwargs)
+                logger.info(f"Successfully generated with fallback {self._fallback}")
+                return response
+                
+            except Exception as fallback_exc:
+                logger.error(f"Fallback provider {self._fallback} also failed: {fallback_exc}")
+                raise FallbackFailedError(
+                    f"Primary provider '{provider_name}' failed: {primary_exc}; "
+                    f"Fallback provider '{self._fallback}' failed: {fallback_exc}"
+                ) from fallback_exc
     
     async def count_tokens(
         self,
