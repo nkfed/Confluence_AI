@@ -5,17 +5,23 @@ Centralizes all AI provider settings, models, API keys, and routing configuratio
 """
 
 import os
+from pathlib import Path
 from typing import Optional, Literal, Tuple
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from dotenv import load_dotenv
 
+# Get project root directory (3 levels up from this file: src/core/config/ai_settings.py)
+PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+ENV_FILE = PROJECT_ROOT / ".env"
+
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(dotenv_path=ENV_FILE)
 
 # Diagnostics: check if .env is accessible
 print(f"[AISettings] Working directory: {os.getcwd()}")
-print(f"[AISettings] .env exists: {os.path.exists('.env')}")
+print(f"[AISettings] .env path: {ENV_FILE}")
+print(f"[AISettings] .env exists: {ENV_FILE.exists()}")
 
 
 class AISettings(BaseSettings):
@@ -68,7 +74,7 @@ class AISettings(BaseSettings):
     )
     
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=str(ENV_FILE),
         env_file_encoding="utf-8",
         extra="ignore"
     )
