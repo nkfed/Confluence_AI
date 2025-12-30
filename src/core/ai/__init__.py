@@ -2,10 +2,12 @@
 
 from src.core.ai.interface import AIResponse, AIProvider, AIProviderType
 from src.core.ai.openai_client import OpenAIClient
+from src.core.ai.gemini_client import GeminiClient
 
 __all__ = [
     "AIResponse",
     "AIProvider",
     "AIProviderType",
     "OpenAIClient",
+    "GeminiClient",
 ]

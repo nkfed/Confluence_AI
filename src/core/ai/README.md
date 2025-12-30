@@ -100,8 +100,107 @@ pytest tests/core/ai/test_interface.py -v
 - [x] AIProvider протокол визначено
 - [x] Тести написано (10/10 passing)
 - [x] **OpenAI Provider реалізовано (16/16 tests passing)**
-- [ ] Gemini Provider (наступний крок)
+- [x] **Gemini Provider реалізовано (24/24 tests passing)**
 - [ ] AI Router (наступний крок)
+
+**Загальна статистика:** ✅ 50/50 tests passing
+
+---
+
+## 🔌 Google Gemini Provider
+
+### Використання
+
+```python
+from src.core.ai import GeminiClient, AIResponse
+
+# Initialize client
+client = GeminiClient(
+    api_key="AIza...",  # Optional, reads from GEMINI_API_KEY or GOOGLE_API_KEY
+    model_default="gemini-2.0-flash-exp"
+)
+
+# Generate text
+response: AIResponse = await client.generate(
+    prompt="Explain quantum computing in simple terms",
+    temperature=0.7,
+    max_tokens=500
+)
+
+print(response.text)  # Generated text
+print(response.total_tokens)  # Token usage
+
+# Count tokens
+token_count = await client.count_tokens("Some text to count")
+print(f"Tokens: {token_count}")
+```
+
+### Особливості
+
+- ✅ **REST API based** — використовує Google Generative AI REST API v1beta
+- ✅ **Rate limit handling** — автоматичні retry з exponential backoff
+- ✅ **Token counting** — вбудована підтримка підрахунку токенів
+- ✅ **Token tracking** — повна інформація про використання токенів
+- ✅ **Error handling** — детальне логування помилок
+- ✅ **Flexible configuration** — підтримка всіх Gemini параметрів
+- ✅ **Protocol compliant** — реалізує AIProvider інтерфейс
+- ✅ **Context manager support** — async with підтримка
+
+### Підтримувані моделі
+
+```python
+# Gemini 2.0 (experimental)
+client = GeminiClient(model_default="gemini-2.0-flash-exp")
+
+# Gemini 1.5 (stable)
+client = GeminiClient(model_default="gemini-1.5-pro")
+client = GeminiClient(model_default="gemini-1.5-flash")
+
+# Gemini 1.0
+client = GeminiClient(model_default="gemini-1.0-pro")
+```
+
+### Конфігурація
+
+```bash
+# .env file
+GEMINI_API_KEY=AIza...  # Preferred
+# OR
+GOOGLE_API_KEY=AIza...  # Alternative
+```
+
+### Generation Parameters
+
+```python
+response = await client.generate(
+    prompt="Your prompt",
+    temperature=0.7,       # Creativity (0.0 - 2.0)
+    max_tokens=1000,       # Maximum output tokens
+    top_p=0.95,           # Nucleus sampling
+    top_k=40              # Top-k sampling
+)
+```
+
+### Тести
+
+```bash
+pytest tests/core/ai/test_gemini_client.py -v
+```
+
+**Test coverage:**
+- ✅ Initialization (6 tests)
+  - With/without API key
+  - Multiple env var names
+  - Custom models and timeouts
+- ✅ Text generation (9 tests)
+  - Success cases
+  - Custom models and parameters
+  - Multiple text parts handling
+  - Rate limit retry
+  - Error handling
+- ✅ Token counting (4 tests)
+- ✅ Embeddings (1 test - placeholder)
+- ✅ Protocol compliance (4 tests)
 
 ---
 
