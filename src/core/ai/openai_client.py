@@ -10,6 +10,7 @@ import os
 from typing import Any, Optional
 from openai import AsyncOpenAI
 from src.core.ai.interface import AIProvider, AIResponse
+from src.core.ai.rate_limit import SimpleRateLimiter
 from src.core.logging.logger import get_logger
 from src.core.logging.timing import log_timing
 
@@ -34,7 +35,8 @@ class OpenAIClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model_default: str = "gpt-4o-mini"
+        model_default: str = "gpt-4o-mini",
+        rate_limiter: Optional[SimpleRateLimiter] = None,
     ):
         """
         Initialize OpenAI client.
@@ -42,6 +44,7 @@ class OpenAIClient:
         Args:
             api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
             model_default: Default model for generation
+            rate_limiter: Optional rate limiter to prevent 429 errors
             
         Raises:
             ValueError: If API key is not provided and OPENAI_API_KEY env var is not set
@@ -52,6 +55,7 @@ class OpenAIClient:
         
         self.client = AsyncOpenAI(api_key=self.api_key)
         self.model_default = model_default
+        self._rate_limiter = rate_limiter
         logger.info(f"OpenAI client initialized with default model: {model_default}")
     
     @log_timing
@@ -84,6 +88,10 @@ class OpenAIClient:
         for attempt in range(1, max_retries + 1):
             try:
                 logger.info(f"[OpenAI] Attempt {attempt}/{max_retries} with model {model_name}")
+                
+                # Apply rate limiting before API call
+                if self._rate_limiter:
+                    self._rate_limiter.before_call()
                 
                 # Call OpenAI API
                 response = await self.client.chat.completions.create(

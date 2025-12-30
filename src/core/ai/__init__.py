@@ -4,6 +4,7 @@ from src.core.ai.interface import AIResponse, AIProvider, AIProviderType
 from src.core.ai.openai_client import OpenAIClient
 from src.core.ai.gemini_client import GeminiClient
 from src.core.ai.router import AIProviderRouter
+from src.core.ai.rate_limit import RateLimitConfig, SimpleRateLimiter
 from src.core.ai.health import (
     ProviderHealth,
     AIHealthReport,
@@ -19,6 +20,8 @@ __all__ = [
     "OpenAIClient",
     "GeminiClient",
     "AIProviderRouter",
+    "RateLimitConfig",
+    "SimpleRateLimiter",
     "ProviderHealth",
     "AIHealthReport",
     "check_ai_health",
