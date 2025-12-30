@@ -73,22 +73,6 @@ class AISettings(BaseSettings):
         extra="ignore"
     )
     
-    def __init__(self, **data):
-        """Initialize settings from environment variables"""
-        # Override with environment variables if present
-        env_data = {
-            "AI_ROUTING_MODE": os.getenv("AI_ROUTING_MODE", "A"),
-            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
-            "OPENAI_MODEL": os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
-            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY"),
-            "GEMINI_MODEL": os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp"),
-            "DEFAULT_AI_PROVIDER": os.getenv("DEFAULT_AI_PROVIDER", "openai"),
-            "FALLBACK_AI_PROVIDER": os.getenv("FALLBACK_AI_PROVIDER", "gemini"),
-        }
-        # Merge with provided data (provided data takes precedence)
-        env_data.update(data)
-        super().__init__(**env_data)
-    
     def get_router_config(self) -> Tuple[str, Optional[str]]:
         """
         Get router configuration based on AI_ROUTING_MODE.
