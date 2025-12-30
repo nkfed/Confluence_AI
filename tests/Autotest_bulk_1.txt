@@ -1,0 +1,90 @@
+Додай цей автотест у проєкт у каталог tests/bulk/ як test_tag_pages.py:
+
+import pytest
+from unittest.mock import patch, MagicMock, AsyncMock
+from src.services.bulk_tagging_service import BulkTaggingService
+
+@pytest.mark.asyncio
+async def test_tag_pages_dry_run_false_with_skipped_ids():
+    """
+    Тест перевіряє, що при dry_run=False:
+    - AI викликається тільки для allowed_ids
+    - skipped_ids не обробляються (не завантажується контент, не викликається AI)
+    - update_labels викликається тільки для allowed_ids
+    - результат містить processed, skipped_due_to_whitelist
+    """
+    # Вхідні дані
+    page_ids = ["111", "222", "333"]
+    whitelist = "111,333"  # 222 має бути пропущена
+
+    # Моки для ConfluenceClient
+    mock_confluence = MagicMock()
+    mock_confluence.get_page = AsyncMock(return_value={
+        "body": {"storage": {"value": "Sample content"}},
+        "title": "Test Page"
+    })
+    mock_confluence.update_labels = AsyncMock()
+
+    # Мок для TaggingAgent
+    mock_agent = MagicMock()
+    mock_agent.suggest_tags = AsyncMock(return_value={
+        "category1": ["tag1", "tag2"]
+    })
+
+    # Патчимо settings та TaggingAgent
+    with patch("src.services.bulk_tagging_service.settings") as mock_settings, \
+         patch("src.services.bulk_tagging_service.TaggingAgent", return_value=mock_agent):
+        
+        mock_settings.ALLOWED_TAGGING_PAGES = whitelist
+
+        # Створюємо сервіс з моками
+        service = BulkTaggingService(confluence_client=mock_confluence)
+        
+        # Виконуємо тест
+        result = await service.tag_pages(page_ids, dry_run=False)
+
+        # Перевірка whitelist-фільтрації
+        assert result["total"] == 3, "Total має бути 3"
+        assert result["processed"] == 2, "Processed має бути 2 (111 та 333)"
+        assert result["skipped_due_to_whitelist"] == 1, "Skipped має бути 1 (222)"
+        assert result["success"] == 2, "Success має бути 2"
+        assert result["errors"] == 0, "Errors має бути 0"
+        assert result["dry_run"] == False
+
+        # Перевірка, що get_page викликався тільки для дозволених сторінок (111 та 333)
+        assert mock_confluence.get_page.call_count == 2, "get_page має викликатись 2 рази"
+        
+        # Перевірка, що AI викликався тільки для дозволених сторінок
+        assert mock_agent.suggest_tags.call_count == 2, "AI має викликатись 2 рази"
+
+        # Перевірка, що update_labels викликався тільки для дозволених сторінок
+        assert mock_confluence.update_labels.call_count == 2, "update_labels має викликатись 2 рази"
+        
+        # Перевірка аргументів update_labels
+        update_calls = mock_confluence.update_labels.call_args_list
+        updated_page_ids = {call[0][0] for call in update_calls}
+        assert updated_page_ids == {"111", "333"}, "update_labels має викликатись для 111 та 333"
+
+        # Перевірка деталей результату
+        assert len(result["details"]) == 3, "Details має містити 3 записи"
+        
+        statuses = {d["page_id"]: d["status"] for d in result["details"]}
+        assert statuses["222"] == "skipped_due_to_whitelist", "222 має бути skipped"
+        assert statuses["111"] == "success", "111 має бути success"
+        assert statuses["333"] == "success", "333 має бути success"
+        
+        # Перевірка, що для пропущеної сторінки немає тегів
+        details_by_id = {d["page_id"]: d for d in result["details"]}
+        assert details_by_id["222"]["tags"] is None, "Пропущена сторінка не має тегів"
+        assert details_by_id["111"]["tags"] is not None, "Оброблена сторінка має теги"
+        assert details_by_id["333"]["tags"] is not None, "Оброблена сторінка має теги"
+
+Після додавання:
+1. Перевір, що тест повністю відповідає оновленій логіці tag_pages().
+2. Переконайся, що всі імпорти правильні.
+3. Переконайся, що використані моки відповідають реальним класам у проєкті.
+4. Якщо потрібно — адаптуй тест під структуру проєкту.
+5. Поясни, чи тест готовий до запуску.
+6. Якщо можливо — підготуй команду для запуску pytest у VS Code.
+
+Не змінюй логіку tag_pages(), змінюй тільки тест, якщо потрібно.

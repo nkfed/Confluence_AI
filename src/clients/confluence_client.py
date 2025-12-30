@@ -24,10 +24,24 @@ class ConfluenceClient:
 
     @log_retry(attempts=3, backoff=1.0)
     @log_timing
-    async def get_page(self, page_id: str) -> Dict[str, Any]:
-        """Отримати сторінку Confluence у форматі storage."""
-        logger.info(f"Fetching page {page_id} from Confluence")
-        url = f"{self.base_url}/wiki/rest/api/content/{page_id}?expand=body.storage,version"
+    async def get_page(self, page_id: str, expand: str = "body.storage,version") -> Dict[str, Any]:
+        """
+        Отримати сторінку Confluence.
+        
+        Args:
+            page_id: ID сторінки
+            expand: Параметри expand (за замовчуванням "body.storage,version")
+                    Можливі значення: "space", "version", "body.storage", "" (без expand)
+        
+        Returns:
+            Dict з даними сторінки
+        """
+        logger.info(f"Fetching page {page_id} from Confluence (expand={expand})")
+        url = f"{self.base_url}/wiki/rest/api/content/{page_id}"
+        
+        # Додаємо expand тільки якщо він не порожній
+        if expand:
+            url += f"?expand={expand}"
 
         try:
             response = requests.get(url, auth=self.auth, headers=self.headers, timeout=10)
@@ -38,18 +52,39 @@ class ConfluenceClient:
             logger.error(f"Error fetching page {page_id}: {e}")
             raise RuntimeError(f"Confluence API error (get_page): {e}")
 
-    def get_page_body(self, page_id: str) -> str:
-        """Отримати HTML-вміст сторінки."""
-        data = self.get_page(page_id)
+    async def get_page_body(self, page_id: str) -> str:
+        """
+        Отримати HTML-вміст сторінки.
+        
+        Args:
+            page_id: ID сторінки
+            
+        Returns:
+            HTML вміст сторінки
+        """
+        data = await self.get_page(page_id)
         return data.get("body", {}).get("storage", {}).get("value", "")
 
     @log_retry(attempts=3, backoff=1.0)
     @log_timing
-    def update_page(self, page_id: str, new_content: str) -> Dict[str, Any]:
-        """Оновити сторінку Confluence."""
+    async def update_page(self, page_id: str, new_content: str) -> Dict[str, Any]:
+        """
+        Оновити сторінку Confluence.
+        
+        Args:
+            page_id: ID сторінки
+            new_content: Новий HTML вміст
+            
+        Returns:
+            Dict з результатом оновлення
+        """
         logger.info(f"Updating page {page_id} in Confluence")
-        page = self.get_page(page_id)
+        
+        # Fetch current page (MUST await async method)
+        page = await self.get_page(page_id)
         current_version = page["version"]["number"]
+        
+        logger.debug(f"Current version: {current_version}, title: {page['title']}")
 
         url = f"{self.base_url}/wiki/rest/api/content/{page_id}"
 
@@ -75,9 +110,17 @@ class ConfluenceClient:
             raise RuntimeError(f"Confluence API error (update_page): {e}")
 
     @log_timing
-    def append_to_page(self, page_id: str, html_block: str) -> Dict[str, Any]:
-        """Додати HTML-блок у кінець сторінки."""
-
+    async def append_to_page(self, page_id: str, html_block: str) -> Dict[str, Any]:
+        """
+        Додати HTML блок в кінець існуючої сторінки.
+        
+        Args:
+            page_id: ID сторінки Confluence
+            html_block: HTML блок для додавання
+            
+        Returns:
+            Dict з результатом оновлення
+        """
         # HTML validation
         try:
             BeautifulSoup(html_block, "html.parser")
@@ -86,11 +129,25 @@ class ConfluenceClient:
             raise ValueError("Invalid HTML content")
 
         logger.info(f"Appending HTML block to page {page_id}")
-        page = self.get_page(page_id)
+        
+        # Fetch page (MUST await async method)
+        page = await self.get_page(page_id)
+        
+        # Log page structure for debugging
+        import json
+        logger.debug(f"Fetched page structure keys: {list(page.keys())}")
+        if "body" in page:
+            logger.debug(f"Page body keys: {list(page['body'].keys())}")
+        
+        # Extract current body
         current_body = page["body"]["storage"]["value"]
+        logger.debug(f"Current body length: {len(current_body)} chars")
+        
+        # Append new content
         new_body = current_body + "\n" + html_block
+        logger.info(f"New body length: {len(new_body)} chars (added {len(html_block)} chars)")
 
-        return self.update_page(page_id, new_body)
+        return await self.update_page(page_id, new_body)
 
     async def _get(self, url: str, params: Dict[str, Any] = None) -> Dict[str, Any]:
         try:
@@ -123,51 +180,106 @@ class ConfluenceClient:
         resp = await self._get(url)
         return [label["name"] for label in resp.get("results", [])]
 
-    async def update_labels(self, page_id: str, tags: dict, dry_run: bool = False):
-        try:
-            logger.info(f"[Confluence] update_labels() called for page {page_id}, dry_run={dry_run}")
-            # 1. Whitelist check
-            allowed = [x.strip() for x in settings.ALLOWED_TAGGING_PAGES.split(",")]
-            if page_id not in allowed:
-                logger.warning(f"[Confluence] Page {page_id} not in whitelist, skipping update")
-                return
-
-            # 2. Отримати існуючі теги
-            existing = await self.get_labels(page_id)
-
-            # 3. Зібрати нові теги у плоский список
-            new_tags = []
-            for category, values in tags.items():
-                new_tags.extend(values)
-
-            # 4. Визначити теги, які треба додати
-            to_add = [t for t in new_tags if t not in existing]
-
-            # 5. Визначити теги, які треба видалити (опційно)
-            to_remove = [t for t in existing if t not in new_tags]
-
-            # 6. Dry-run логіка
-            if dry_run:
-                logger.info(f"[Confluence] Dry-run: would add {to_add}, remove {to_remove}")
-                return
-
-            # 7. Реалізувати додавання тегів
-            if to_add:
-                payload = [{"prefix": "global", "name": t} for t in to_add]
+    async def update_labels(
+        self, 
+        page_id: str, 
+        labels_to_add: list = None, 
+        labels_to_remove: list = None
+    ):
+        """
+        Update labels for a Confluence page.
+        
+        Args:
+            page_id: The Confluence page ID
+            labels_to_add: List of label names to add
+            labels_to_remove: List of label names to remove
+            
+        Returns:
+            Dict with update results
+        """
+        labels_to_add = labels_to_add or []
+        labels_to_remove = labels_to_remove or []
+        
+        logger.info(f"[Confluence] update_labels() called for page {page_id}")
+        logger.debug(f"[Confluence] labels_to_add={labels_to_add}, labels_to_remove={labels_to_remove}")
+        
+        # 1. Get current labels
+        current_labels = await self.get_labels(page_id)
+        logger.debug(f"[Confluence] Current labels: {current_labels}")
+        
+        # 2. Compute final labels
+        # Remove labels that should be removed
+        final_labels = [label for label in current_labels if label not in labels_to_remove]
+        
+        # Add new labels (avoiding duplicates)
+        for label in labels_to_add:
+            if label not in final_labels:
+                final_labels.append(label)
+        
+        logger.info(f"[Confluence] Final labels: {final_labels}")
+        
+        # 3. Add new labels via API
+        if labels_to_add:
+            try:
+                payload = [{"prefix": "global", "name": label} for label in labels_to_add]
                 url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label"
                 await self._post(url, json=payload)
-                logger.info(f"[Confluence] Added labels: {to_add}")
+                logger.info(f"[Confluence] Successfully added labels: {labels_to_add}")
+            except Exception as e:
+                logger.error(f"[Confluence] Failed to add labels: {e}")
+                raise
+        
+        # 4. Remove labels via API
+        if labels_to_remove:
+            try:
+                for label in labels_to_remove:
+                    url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label/{label}"
+                    await self._delete(url)
+                logger.info(f"[Confluence] Successfully removed labels: {labels_to_remove}")
+            except Exception as e:
+                logger.error(f"[Confluence] Failed to remove labels: {e}")
+                raise
+        
+        return {
+            "page_id": page_id,
+            "labels_added": labels_to_add,
+            "labels_removed": labels_to_remove,
+            "final_labels": final_labels
+        }
 
-            # 8. Реалізувати видалення тегів
-            for t in to_remove:
-                url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label/{t}"
-                await self._delete(url)
-            if to_remove:
-                logger.info(f"[Confluence] Removed labels: {to_remove}")
+    async def get_child_pages(self, parent_id: str) -> list[str]:
+        """Отримати список ID дочірніх сторінок."""
+        url = f"{self.base_url}/wiki/rest/api/content/{parent_id}/child/page"
+        resp = await self._get(url)
+        return [page["id"] for page in resp.get("results", [])]
 
-        except Exception as e:
-            logger.error(f"[Confluence] Failed to update labels for page {page_id}: {e}")
-            raise
+    async def get_all_pages_in_space(self, space_key: str) -> list[str]:
+        """Отримати список ID усіх сторінок у просторі."""
+        url = f"{self.base_url}/wiki/rest/api/content"
+        pages = []
+        limit = 50
+        start = 0
+
+        while True:
+            params = {
+                "spaceKey": space_key,
+                "type": "page",
+                "limit": limit,
+                "start": start
+            }
+            resp = await self._get(url, params=params)
+            results = resp.get("results", [])
+            if not results:
+                break
+
+            pages.extend([page["id"] for page in results])
+            start += limit
+
+            # Якщо результатів менше ліміту — ми на останній сторінці
+            if len(results) < limit:
+                break
+
+        return pages
 
     def search(self, query: str, limit: int = 10) -> Dict[str, Any]:
         """Пошук сторінок у Confluence."""
@@ -180,3 +292,163 @@ class ConfluenceClient:
             return response.json()
         except requests.RequestException as e:
             raise RuntimeError(f"Confluence API error (search): {e}")
+
+    async def get_spaces(
+        self,
+        query: str = None,
+        accessible_only: bool = True,
+        start: int = 0,
+        limit: int = 25
+    ) -> Dict[str, Any]:
+        """
+        Отримати список просторів Confluence.
+        
+        Args:
+            query: Пошуковий запит (None = всі простори)
+            accessible_only: Тільки доступні простори
+            start: Початковий індекс для пагінації
+            limit: Максимальна кількість результатів
+            
+        Returns:
+            Dict з results, start, limit, size
+        """
+        logger.info(f"Fetching spaces: query={query}, start={start}, limit={limit}")
+        url = f"{self.base_url}/wiki/rest/api/space"
+        
+        params = {
+            "start": start,
+            "limit": limit
+        }
+        
+        if query:
+            params["spaceKey"] = query
+        
+        try:
+            response = requests.get(url, auth=self.auth, headers=self.headers, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            logger.info(f"Successfully fetched {len(data.get('results', []))} spaces")
+            return data
+        except requests.RequestException as e:
+            logger.error(f"Error fetching spaces: {e}")
+            raise RuntimeError(f"Confluence API error (get_spaces): {e}")
+
+    async def get_pages_in_space(
+        self,
+        space_key: str,
+        expand: str = "body.storage,version"
+    ) -> list[Dict[str, Any]]:
+        """
+        Отримати всі сторінки у просторі з повною інформацією.
+        
+        Args:
+            space_key: Ключ простору Confluence
+            expand: Поля для розширення (за замовчуванням: body.storage,version)
+            
+        Returns:
+            Список об'єктів сторінок з повною інформацією
+        """
+        logger.info(f"Fetching all pages in space {space_key} with expand={expand}")
+        url = f"{self.base_url}/wiki/rest/api/content"
+        pages = []
+        limit = 50
+        start = 0
+
+        while True:
+            params = {
+                "spaceKey": space_key,
+                "type": "page",
+                "limit": limit,
+                "start": start,
+                "expand": expand
+            }
+            
+            try:
+                response = requests.get(url, auth=self.auth, headers=self.headers, params=params, timeout=10)
+                response.raise_for_status()
+                resp = response.json()
+            except requests.RequestException as e:
+                logger.error(f"Error fetching pages in space {space_key}: {e}")
+                raise RuntimeError(f"Confluence API error (get_pages_in_space): {e}")
+            
+            results = resp.get("results", [])
+            if not results:
+                break
+
+            pages.extend(results)
+            start += limit
+
+            # Якщо результатів менше ліміту — ми на останній сторінці
+            if len(results) < limit:
+                break
+
+        logger.info(f"Successfully fetched {len(pages)} pages from space {space_key}")
+        return pages
+
+    async def remove_labels(self, page_id: str, labels: list[str]) -> Dict[str, Any]:
+        """
+        Видалити теги зі сторінки.
+        
+        Args:
+            page_id: ID сторінки
+            labels: Список тегів для видалення
+            
+        Returns:
+            Dict з результатом операції
+        """
+        logger.info(f"Removing labels {labels} from page {page_id}")
+        
+        removed = []
+        errors = []
+        
+        for label in labels:
+            try:
+                url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label/{label}"
+                await self._delete(url)
+                removed.append(label)
+                logger.debug(f"Successfully removed label '{label}' from page {page_id}")
+            except Exception as e:
+                logger.error(f"Failed to remove label '{label}' from page {page_id}: {e}")
+                errors.append({"label": label, "error": str(e)})
+        
+        return {
+            "page_id": page_id,
+            "removed": removed,
+            "errors": errors
+        }
+
+    async def add_labels(self, page_id: str, labels: list[str]) -> Dict[str, Any]:
+        """
+        Додати теги на сторінку.
+        
+        Args:
+            page_id: ID сторінки
+            labels: Список тегів для додавання
+            
+        Returns:
+            Dict з результатом операції
+        """
+        if not labels:
+            return {"page_id": page_id, "added": [], "errors": []}
+        
+        logger.info(f"Adding labels {labels} to page {page_id}")
+        
+        try:
+            payload = [{"prefix": "global", "name": label} for label in labels]
+            url = f"{self.base_url}/wiki/rest/api/content/{page_id}/label"
+            await self._post(url, json=payload)
+            
+            logger.info(f"Successfully added labels {labels} to page {page_id}")
+            return {
+                "page_id": page_id,
+                "added": labels,
+                "errors": []
+            }
+        except Exception as e:
+            logger.error(f"Failed to add labels {labels} to page {page_id}: {e}")
+            return {
+                "page_id": page_id,
+                "added": [],
+                "errors": [{"labels": labels, "error": str(e)}]
+            }

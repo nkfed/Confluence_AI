@@ -1,0 +1,297 @@
+Миколо, тримаю для тебе **повністю оновлений, виправлений і узгоджений** `agent-mode-system.md` — уже з урахуванням усіх зауважень, які ми виявили під час аудиту.
+
+Документ тепер:
+
+- не містить застарілих обмежень  
+- точно відображає dry‑run логіку  
+- правильно описує SAFE_TEST  
+- коректно описує SummaryAgent, TaggingAgent і BulkTaggingService  
+- містить виправлену матрицю поведінки  
+- містить уточнення про tree traversal  
+- повністю відповідає актуальному коду  
+
+Готовий до використання в репозиторії.
+
+---
+
+# **agent-mode-system.md (версія 2.1 — оновлена)**
+
+```markdown
+# Agent Mode System — Unified Architecture (v2.1)
+
+## Огляд
+
+Централізована система керування режимами роботи агентів з трьома рівнями безпеки, повною підтримкою dry‑run та уніфікованою логікою для всіх агентів.
+
+**Дата оновлення:** 27 грудня 2025  
+**Версія:** 2.1  
+**Статус:** ✅ Актуальна, узгоджена з реалізацією
+
+---
+
+# Режими роботи
+
+## 1. TEST (Абсолютно безпечний режим)
+
+**Призначення:** локальне тестування без ризику змін у Confluence.
+
+**Поведінка:**
+- Генерація summary/tags: **дозволена**
+- Запис у Confluence: **заборонений**
+- Читання сторінок: **дозволене для всіх**
+- Модифікація: **завжди dry‑run**
+- Whitelist використовується тільки для модифікацій
+- Повертає `status=dry_run`
+
+**Приклад результату:**
+```json
+{
+  "status": "dry_run",
+  "summary_added": false,
+  "message": "TEST mode — summary NOT written to Confluence"
+}
+```
+
+---
+
+## 2. SAFE_TEST (Напів-безпечний режим)
+
+**Призначення:** staging / інтеграційні тести.
+
+**Поведінка:**
+- Генерація summary/tags: **дозволена для всіх сторінок**
+- Читання: **дозволене для всіх сторінок**
+- Запис у Confluence: **дозволений тільки для whitelist**
+- Модифікація інших сторінок: **заборонена**
+
+**Приклад результату:**
+```json
+{
+  "status": "updated",
+  "summary_added": true,
+  "page_id": "19713687690"
+}
+```
+
+---
+
+## 3. PROD (Production)
+
+**Поведінка:**
+- Повний доступ
+- Whitelist ігнорується
+- Генерація та запис дозволені для всіх сторінок
+
+---
+
+# Архітектура
+
+## AgentModeResolver  
+**Файл:** `src/core/agent_mode_resolver.py`
+
+Централізований механізм визначення режимів та whitelist.
+
+### Методи:
+
+```python
+resolve_mode(agent_name, explicit_mode)
+resolve_whitelist(agent_name)
+should_perform_dry_run(mode)
+can_modify_confluence(mode, page_id, whitelist)
+```
+
+### Логіка:
+
+| Режим | Модифікація | Читання | Dry‑run |
+|-------|-------------|---------|---------|
+| TEST | ❌ Ніколи | ✅ Всі | ✅ Завжди |
+| SAFE_TEST | ✅ Тільки whitelist | ✅ Всі | ❌ |
+| PROD | ✅ Всі | ✅ Всі | ❌ |
+
+---
+
+# BaseAgent  
+**Файл:** `src/agents/base_agent.py`
+
+Уніфікована логіка для всіх агентів.
+
+### Основні методи:
+
+```python
+self.mode = AgentModeResolver.resolve_mode(...)
+self.allowed_test_pages = AgentModeResolver.resolve_whitelist(...)
+self.is_dry_run()
+self.enforce_page_policy(page_id)
+```
+
+### Важливо:
+
+- `is_page_allowed()` — перевірка доступу для читання  
+- `enforce_page_policy()` — перевірка дозволу на модифікацію  
+- Читання **ніколи не блокується**  
+- Модифікація блокується згідно з режимом
+
+---
+
+# SummaryAgent  
+**Файл:** `src/agents/summary_agent.py`
+
+### Поведінка:
+
+| Режим | Генерація summary | Запис summary |
+|-------|-------------------|---------------|
+| TEST | ✅ | ❌ dry‑run |
+| SAFE_TEST | ✅ | ✅ тільки whitelist |
+| PROD | ✅ | ✅ всі сторінки |
+
+### Dry‑run реалізація:
+
+```python
+if self.is_dry_run():
+    return {"status": "dry_run", ...}
+```
+
+---
+
+# TaggingAgent  
+**Файл:** `src/agents/tagging_agent.py`
+
+### Важливо:
+
+- TaggingAgent **не виконує записів у Confluence напряму**
+- Тому dry‑run реалізовано **в BulkTaggingService**
+- TaggingAgent завжди може:
+  - читати сторінки
+  - обходити дерево
+  - генерувати теги
+
+Це **не залежить від режиму**.
+
+---
+
+# BulkTaggingService  
+**Файл:** `src/services/bulk_tagging_service.py`
+
+### Поведінка:
+
+| Режим | Генерація тегів | Запис labels |
+|-------|----------------|--------------|
+| TEST | ✅ | ❌ dry‑run |
+| SAFE_TEST | ✅ | ✅ тільки whitelist |
+| PROD | ✅ | ✅ всі сторінки |
+
+### Dry‑run реалізація:
+
+```python
+dry_run = self.agent.is_dry_run()
+```
+
+### Перевірка політики:
+
+```python
+self.agent.enforce_page_policy(page_id)
+```
+
+---
+
+# Матриця поведінки (виправлена)
+
+| Операція | TEST | SAFE_TEST | PROD |
+|----------|------|-----------|------|
+| Читання сторінок | ✅ Всі | ✅ Всі | ✅ Всі |
+| Генерація summary | ✅ Всі | ✅ Всі | ✅ Всі |
+| Запис summary | ❌ Ніколи | ✅ Тільки whitelist | ✅ Всі |
+| Генерація тегів | ✅ Всі | ✅ Всі | ✅ Всі |
+| Запис тегів | ❌ Ніколи | ✅ Тільки whitelist | ✅ Всі |
+| Tree traversal | ✅ Всі | ✅ Всі | ✅ Всі |
+
+---
+
+# Конфігурація .env
+
+```dotenv
+###############################################
+# GLOBAL AGENT MODE
+###############################################
+AGENT_MODE=TEST
+
+###############################################
+# INDIVIDUAL AGENT MODES
+###############################################
+
+SUMMARY_AGENT_MODE=SAFE_TEST
+SUMMARY_AGENT_TEST_PAGE=19713687690,19699862097
+
+TAGGING_AGENT_MODE=TEST
+TAGGING_AGENT_TEST_PAGE=19713687690
+```
+
+---
+
+# Пріоритет визначення режиму
+
+```
+1. Explicit parameter
+2. Per-agent mode (SUMMARY_AGENT_MODE)
+3. Global AGENT_MODE
+4. Default: TEST
+```
+
+---
+
+# Міграція
+
+### 1. Усі агенти повинні викликати BaseAgent так:
+
+```python
+super().__init__(agent_name="SUMMARY_AGENT")
+```
+
+### 2. Усі агенти, що модифікують Confluence, повинні:
+
+```python
+self.enforce_page_policy(page_id)
+if self.is_dry_run(): return {...}
+```
+
+### 3. BulkTaggingService повинен використовувати:
+
+```python
+dry_run = self.agent.is_dry_run()
+```
+
+---
+
+# Переваги
+
+- Єдина логіка для всіх агентів  
+- Повна безпека в TEST  
+- Контрольовані оновлення в SAFE_TEST  
+- Повний доступ у PROD  
+- Централізований контроль  
+- Проста масштабованість  
+
+---
+
+# FAQ
+
+### Чи блокується читання сторінок у TEST або SAFE_TEST?
+**Ні.** Читання дозволено завжди.
+
+### Чи може TaggingAgent обходити дерево у TEST?
+**Так.** Tree traversal не обмежується режимами.
+
+### Чи можна оновлювати сторінки у TEST?
+**Ні.** TEST — це завжди dry‑run.
+
+### Чи можна оновлювати сторінки у SAFE_TEST?
+**Так, але тільки whitelist.**
+
+---
+
+# Контакти
+
+**Автор:** GitHub Copilot  
+**Дата:** 27 грудня 2025  
+**Версія документа:** 2.1
+```

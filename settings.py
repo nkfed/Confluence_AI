@@ -6,7 +6,14 @@ from pydantic_settings import BaseSettings
 load_dotenv()
 
 class AgentMode(str, Enum):
+    """
+    Режими роботи агентів:
+    - TEST: dry-run режим, жодних змін у Confluence
+    - SAFE_TEST: оновлення тільки whitelist сторінок
+    - PROD: повний доступ до всіх сторінок
+    """
     TEST = "TEST"
+    SAFE_TEST = "SAFE_TEST"
     PROD = "PROD"
 
 def _env(name: str, default: str):
@@ -53,12 +60,8 @@ class Settings(BaseSettings):
     PIPELINE_AGENT_MODE: str = _env("PIPELINE_AGENT_MODE", AGENT_MODE)
     CONTENT_REWRITE_AGENT_MODE: str = _env("CONTENT_REWRITE_AGENT_MODE", AGENT_MODE)
 
-    # --- TEST PAGE IDS ---
-    ALLOWED_TAGGING_PAGES: str = _env("ALLOWED_TAGGING_PAGES", "19713687690,19713687700")
-    SUMMARY_AGENT_TEST_PAGE: str = _env("SUMMARY_AGENT_TEST_PAGE", "19713687690")
-    TAGGING_AGENT_TEST_PAGE: str = _env("TAGGING_AGENT_TEST_PAGE", "19713687690")
-    CLASSIFICATION_AGENT_TEST_PAGE: str = _env("CLASSIFICATION_AGENT_TEST_PAGE", "19713687690")
-    QUALITY_AUDIT_AGENT_TEST_PAGE: str = _env("QUALITY_AUDIT_AGENT_TEST_PAGE", "19713687690")
+    # Note: Old whitelist variables (ALLOWED_TAGGING_PAGES, SUMMARY_AGENT_TEST_PAGE, etc.)
+    # have been removed. Use whitelist_config.json with WhitelistManager instead.
 
     class Config:
         env_file = ".env"
