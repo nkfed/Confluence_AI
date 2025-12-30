@@ -243,6 +243,73 @@ class AIProviderRouter:
             bool: True if provider is registered
         """
         return name in self._providers
+    
+    async def explain(self, settings: Optional[Any] = None) -> dict:
+        """
+        Return detailed diagnostics of current AI routing state.
+        
+        Provides comprehensive information about routing configuration,
+        registered providers, models, API keys, and health status.
+        
+        Useful for:
+        - Debugging routing issues
+        - Pre-deployment checks
+        - Health dashboards
+        - CI/CD validation
+        - Configuration verification
+        
+        Args:
+            settings: AI settings (uses default if not provided)
+            
+        Returns:
+            dict: Detailed routing diagnostics including:
+                - routing_mode: Active routing mode (A/B/C/D)
+                - default_provider: Primary provider name
+                - fallback_provider: Fallback provider name
+                - registered_providers: List of available providers
+                - models: Model configuration for each provider
+                - api_keys: API key availability (boolean)
+                - health: Health status for each provider
+                - all_providers_ok: Overall health status
+                
+        Example:
+            >>> router = AIProviderRouter()
+            >>> report = await router.explain()
+            >>> print(f"Mode: {report['routing_mode']}")
+            >>> print(f"Primary: {report['default_provider']}")
+            >>> print(f"All OK: {report['all_providers_ok']}")
+        """
+        from src.core.config.ai_settings import AISettings
+        from src.core.ai.health import check_ai_health
+        
+        settings = settings or AISettings()
+        
+        # Perform health check
+        health_report = await check_ai_health(settings)
+        
+        return {
+            "routing_mode": settings.AI_ROUTING_MODE,
+            "default_provider": self._default,
+            "fallback_provider": self._fallback,
+            "registered_providers": sorted(self._providers.keys()),
+            "models": {
+                "openai": settings.OPENAI_MODEL,
+                "gemini": settings.GEMINI_MODEL,
+            },
+            "api_keys": {
+                "openai": bool(settings.OPENAI_API_KEY),
+                "gemini": bool(settings.GEMINI_API_KEY),
+            },
+            "health": {
+                name: {
+                    "ok": ph.ok,
+                    "error": ph.error,
+                    "details": ph.details,
+                }
+                for name, ph in health_report.providers.items()
+            },
+            "all_providers_ok": health_report.all_ok,
+        }
 
 
 __all__ = ["AIProviderRouter"]
