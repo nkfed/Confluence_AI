@@ -1,8 +1,9 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .base_agent import BaseAgent
 from .prompt_builder import PromptBuilder
 from src.clients.confluence_client import ConfluenceClient
 from src.clients.openai_client import OpenAIClient
+from src.core.ai.router import AIProviderRouter
 from src.utils.html_to_text import html_to_text
 from src.utils.token_counter import estimate_tokens_count
 from src.core.logging.logger import get_logger, audit_logger
@@ -20,10 +21,28 @@ MIN_CONTENT_THRESHOLD = 200  # characters
 class SummaryAgent(BaseAgent):
     """Агент, який формує summary для сторінок Confluence."""
 
-    def __init__(self, confluence_client: ConfluenceClient = None, openai_client: OpenAIClient = None):
+    def __init__(
+        self,
+        confluence_client: ConfluenceClient = None,
+        openai_client: OpenAIClient = None,
+        ai_router: Optional[AIProviderRouter] = None,
+        ai_provider: Optional[str] = None
+    ):
         super().__init__(agent_name="SUMMARY_AGENT")
         self.confluence = confluence_client or ConfluenceClient()
-        self.ai = openai_client or OpenAIClient()
+        
+        # Support both old (openai_client) and new (ai_router) initialization
+        if ai_router is not None:
+            self._ai_router = ai_router
+            self._ai_provider = ai_provider
+            self.ai = None  # Mark as using router
+            logger.info(f"SummaryAgent using AI Router with provider: {ai_provider or 'default'}")
+        else:
+            # Backward compatibility: use direct OpenAI client
+            self.ai = openai_client or OpenAIClient()
+            self._ai_router = None
+            self._ai_provider = None
+            logger.info("SummaryAgent using direct OpenAI client (legacy mode)")
         
         # Debug logging for mode verification
         print(f"DEBUG: SummaryAgent initialized with mode={self.mode}")
@@ -48,12 +67,21 @@ class SummaryAgent(BaseAgent):
         approx_tokens = estimate_tokens_count(text)
         logger.info(f"Step 3.1: Estimated tokens = {approx_tokens}")
 
-        logger.info("Step 4: Building prompt for OpenAI")
+        logger.info("Step 4: Building prompt for AI")
         prompt_template = PromptLoader.load("summary", mode=self.mode)
         prompt = prompt_template.format(TEXT=text[:5000])
 
-        logger.info("Step 5: Calling OpenAI")
-        summary = await self.ai.generate(prompt)
+        logger.info("Step 5: Calling AI provider")
+        if self._ai_router is not None:
+            # Use router
+            provider = self._ai_router.get(self._ai_provider)
+            ai_response = await provider.generate(prompt)
+            summary = ai_response.text
+            logger.info(f"Step 5.1: AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
+        else:
+            # Legacy: direct OpenAI call
+            summary = await self.ai.generate(prompt)
+            logger.info("Step 5.1: OpenAI response received (legacy mode)")
 
         logger.info("Step 6: Summary generated successfully")
         return summary
