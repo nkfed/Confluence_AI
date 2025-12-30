@@ -5,6 +5,7 @@ from uuid import uuid4
 from datetime import datetime
 from src.services.tagging_service import TaggingService, flatten_tags
 from src.clients.confluence_client import ConfluenceClient
+from src.core.ai.router import router
 from src.core.logging.logger import get_logger
 from settings import settings
 
@@ -27,9 +28,9 @@ class BulkTaggingService:
         self.confluence = confluence_client or ConfluenceClient()
         self.tagging_service = tagging_service or TaggingService(confluence_client=self.confluence)
         
-        # Create agent instance for mode/policy checking
+        # Create agent instance for mode/policy checking (use router for AI logging)
         from src.agents.tagging_agent import TaggingAgent
-        self.agent = TaggingAgent()
+        self.agent = TaggingAgent(ai_router=router)
     
     def create_task_id(self) -> str:
         """
@@ -176,7 +177,7 @@ class BulkTaggingService:
                 
                 # Формуємо індивідуальний AI-промпт на основі контенту
                 from src.agents.tagging_agent import TaggingAgent
-                agent = TaggingAgent()
+                agent = TaggingAgent(ai_router=router)
                 tags = await agent.suggest_tags(text)
                 
                 logger.info(f"[TagPages] Generated tags for {page_id}: {tags}")
