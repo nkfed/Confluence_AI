@@ -6,10 +6,19 @@ Centralizes all AI provider settings, models, API keys, and routing configuratio
 
 import os
 from typing import Optional, Literal, Tuple
-from pydantic import BaseModel, Field
+from pydantic_settings import BaseSettings
+from pydantic import Field
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Diagnostics: check if .env is accessible
+print(f"[AISettings] Working directory: {os.getcwd()}")
+print(f"[AISettings] .env exists: {os.path.exists('.env')}")
 
 
-class AISettings(BaseModel):
+class AISettings(BaseSettings):
     """
     Centralized AI configuration settings.
     
@@ -63,6 +72,7 @@ class AISettings(BaseModel):
         env_file = ".env"
         env_file_encoding = "utf-8"
         case_sensitive = True
+        extra = "ignore"  # Ignore extra fields from .env that are not defined in the model
     
     def __init__(self, **data):
         """Initialize settings from environment variables"""
