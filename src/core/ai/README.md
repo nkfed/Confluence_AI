@@ -101,9 +101,140 @@ pytest tests/core/ai/test_interface.py -v
 - [x] Тести написано (10/10 passing)
 - [x] **OpenAI Provider реалізовано (16/16 tests passing)**
 - [x] **Gemini Provider реалізовано (24/24 tests passing)**
-- [ ] AI Router (наступний крок)
+- [x] **AI Router реалізовано (26/26 tests passing)**
 
-**Загальна статистика:** ✅ 50/50 tests passing
+**Загальна статистика:** ✅ 76/76 tests passing
+
+---
+
+## 🔀 AI Provider Router
+
+### Використання
+
+```python
+from src.core.ai import AIProviderRouter
+
+# Initialize with fallback
+router = AIProviderRouter(
+    default_provider="openai",
+    fallback_provider="gemini"
+)
+
+# Generate using default provider
+response = await router.generate("Explain AI")
+# Uses OpenAI, falls back to Gemini on error
+
+# Generate using specific provider
+response = await router.generate("Explain AI", provider="gemini")
+# Explicitly uses Gemini
+
+# Count tokens
+tokens = await router.count_tokens("Some text", provider="gemini")
+
+# Get provider instance
+client = router.get("openai")
+response = await client.generate("Prompt")
+```
+
+### Особливості
+
+- ✅ **Centralized management** — єдина точка входу для всіх AI викликів
+- ✅ **Lazy loading** — провайдери ініціалізуються тільки при наявності API keys
+- ✅ **Fallback support** — автоматичний перехід на backup провайдер при помилках
+- ✅ **Flexible selection** — вибір провайдера через параметр або дефолт
+- ✅ **Manual registration** — можливість додати custom провайдери
+- ✅ **Properties** — зручний доступ до конфігурації
+
+### Конфігурація
+
+```python
+# Default with auto-registration
+router = AIProviderRouter()  # default: openai, no fallback
+
+# With fallback
+router = AIProviderRouter(
+    default_provider="openai",
+    fallback_provider="gemini"
+)
+
+# Without auto-registration (for testing)
+router = AIProviderRouter(auto_register=False)
+
+# Manual registration
+router.register("custom", CustomProvider())
+```
+
+### Fallback Workflow
+
+```python
+router = AIProviderRouter(
+    default_provider="openai",
+    fallback_provider="gemini"
+)
+
+# Scenario 1: OpenAI succeeds
+response = await router.generate("prompt")
+# → Uses OpenAI ✓
+
+# Scenario 2: OpenAI fails, Gemini succeeds  
+# (OpenAI raises error)
+response = await router.generate("prompt")
+# → Tries OpenAI ✗
+# → Falls back to Gemini ✓
+
+# Scenario 3: Both fail
+# (Both raise errors)
+response = await router.generate("prompt")
+# → Tries OpenAI ✗
+# → Tries Gemini ✗
+# → Raises RuntimeError
+```
+
+### Properties
+
+```python
+router = AIProviderRouter(
+    default_provider="gemini",
+    fallback_provider="openai"
+)
+
+# Get registered providers
+print(router.providers)
+# → {'openai': 'OpenAIClient', 'gemini': 'GeminiClient'}
+
+# Check if provider exists
+if router.has_provider("gemini"):
+    print("Gemini is available")
+
+# Get configuration
+print(router.default_provider)   # → "gemini"
+print(router.fallback_provider)  # → "openai"
+```
+
+### Тести
+
+```bash
+pytest tests/core/ai/test_router.py -v
+```
+
+**Test coverage:**
+- ✅ Initialization (6 tests)
+  - Default/custom providers
+  - Fallback configuration
+  - Auto-registration
+  - Pre-initialized providers
+- ✅ Get method (4 tests)
+  - Default/specific providers
+  - Unknown provider errors
+- ✅ Generate method (7 tests)
+  - Default/specific providers
+  - Kwargs passing
+  - Fallback on error
+  - Error handling
+- ✅ Count tokens (2 tests)
+- ✅ Properties (4 tests)
+- ✅ Manual registration (2 tests)
+- ✅ Integration (1 test)
 
 ---
 
