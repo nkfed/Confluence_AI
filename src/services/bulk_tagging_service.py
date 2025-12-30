@@ -429,7 +429,8 @@ class BulkTaggingService:
         error_count = 0
         skipped_count = 0
         
-        summary_agent = SummaryAgent()
+        # Use router-based SummaryAgent to ensure AI calls are logged via log_ai_call
+        summary_agent = SummaryAgent(ai_router=router)
         
         for i, page_id in enumerate(pages_to_process, 1):
             logger.info(f"[TagTree] Processing page {i}/{len(pages_to_process)}: {page_id}")
