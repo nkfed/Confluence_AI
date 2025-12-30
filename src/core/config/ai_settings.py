@@ -6,7 +6,7 @@ Centralizes all AI provider settings, models, API keys, and routing configuratio
 
 import os
 from typing import Optional, Literal, Tuple
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import Field
 from dotenv import load_dotenv
 
@@ -67,12 +67,11 @@ class AISettings(BaseSettings):
         description="Fallback AI provider if primary fails"
     )
     
-    class Config:
-        """Pydantic model configuration"""
-        env_file = ".env"
-        env_file_encoding = "utf-8"
-        case_sensitive = True
-        extra = "ignore"  # Ignore extra fields from .env that are not defined in the model
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
     
     def __init__(self, **data):
         """Initialize settings from environment variables"""
