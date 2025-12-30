@@ -251,10 +251,29 @@ class SummaryAgent(BaseAgent):
         # Build prompt using PromptBuilder
         prompt = PromptBuilder.build_tag_tree_prompt(content, allowed_labels, dry_run)
         
-        # Call AI
-        logger.info("Calling OpenAI for tag suggestions")
-        ai_response = await self.ai.generate(prompt)
-        logger.debug(f"AI response: {ai_response[:500]}")
+        # Call AI via router (preferred) or legacy client
+        logger.info(
+            f"[TagTree] Calling AI for tag suggestions (router={self._ai_router is not None}, provider={self._ai_provider})"
+        )
+        if self._ai_router is not None:
+            provider = self._ai_router.get(self._ai_provider)
+            logger.info(
+                f"[TagTree] Using provider for tag-tree", 
+                extra={"provider": provider.name, "model": provider.model_default}
+            )
+            ai_response_obj = await log_ai_call(
+                provider_name=provider.name,
+                model=provider.model_default,
+                operation="tag-tree",
+                coro=lambda: provider.generate(prompt)
+            )
+            ai_response = ai_response_obj.text
+            logger.debug(f"AI response: {ai_response[:500]}")
+        else:
+            logger.info("[TagTree] Using legacy OpenAI client for tag suggestions")
+            ai_response_obj = await self.ai.generate(prompt)
+            ai_response = ai_response_obj.text if hasattr(ai_response_obj, "text") else ai_response_obj
+            logger.debug(f"AI response: {str(ai_response)[:500]}")
         
         # Parse AI response (expecting JSON with tags by category)
         ai_tags_dict = self._parse_tags_dict_from_response(ai_response)
