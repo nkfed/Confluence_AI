@@ -4,6 +4,13 @@ from src.core.ai.interface import AIResponse, AIProvider, AIProviderType
 from src.core.ai.openai_client import OpenAIClient
 from src.core.ai.gemini_client import GeminiClient
 from src.core.ai.router import AIProviderRouter
+from src.core.ai.health import (
+    ProviderHealth,
+    AIHealthReport,
+    check_ai_health,
+    check_provider_openai,
+    check_provider_gemini,
+)
 
 __all__ = [
     "AIResponse",
@@ -12,4 +19,9 @@ __all__ = [
     "OpenAIClient",
     "GeminiClient",
     "AIProviderRouter",
+    "ProviderHealth",
+    "AIHealthReport",
+    "check_ai_health",
+    "check_provider_openai",
+    "check_provider_gemini",
 ]
