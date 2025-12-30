@@ -99,6 +99,64 @@ pytest tests/core/ai/test_interface.py -v
 - [x] AIResponse модель створено
 - [x] AIProvider протокол визначено
 - [x] Тести написано (10/10 passing)
-- [ ] OpenAI Provider (наступний крок)
+- [x] **OpenAI Provider реалізовано (16/16 tests passing)**
 - [ ] Gemini Provider (наступний крок)
 - [ ] AI Router (наступний крок)
+
+---
+
+## 🔌 OpenAI Provider
+
+### Використання
+
+```python
+from src.core.ai import OpenAIClient, AIResponse
+
+# Initialize client
+client = OpenAIClient(
+    api_key="sk-...",  # Optional, reads from OPENAI_API_KEY env var
+    model_default="gpt-4o-mini"
+)
+
+# Generate text
+response: AIResponse = await client.generate(
+    prompt="Explain quantum computing",
+    temperature=0.7,
+    max_tokens=500
+)
+
+print(response.text)  # Generated text
+print(response.total_tokens)  # Token usage
+```
+
+### Особливості
+
+- ✅ **Rate limit handling** — автоматичні retry з exponential backoff
+- ✅ **Token tracking** — повна інформація про використання токенів
+- ✅ **Error handling** — детальне логування помилок
+- ✅ **Flexible configuration** — підтримка всіх OpenAI параметрів
+- ✅ **Protocol compliant** — реалізує AIProvider інтерфейс
+
+### Конфігурація
+
+```bash
+# .env file
+OPENAI_API_KEY=sk-...
+OPENAI_MODEL=gpt-4o-mini  # Default model
+```
+
+### Тести
+
+```bash
+pytest tests/core/ai/test_openai_client.py -v
+```
+
+**Test coverage:**
+- ✅ Initialization (with/without API key)
+- ✅ Text generation (success, retries, errors)
+- ✅ Rate limit handling
+- ✅ Token counting (not implemented placeholder)
+- ✅ Embeddings (not implemented placeholder)
+- ✅ Protocol compliance
+
+---
