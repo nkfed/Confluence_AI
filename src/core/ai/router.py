@@ -10,9 +10,11 @@ from src.core.ai.interface import AIProvider, AIResponse
 from src.core.ai.openai_client import OpenAIClient
 from src.core.ai.gemini_client import GeminiClient
 from src.core.ai.errors import ProviderUnavailableError, FallbackFailedError
+from src.core.ai.logging_utils import log_ai_call
 from src.core.logging.logger import get_logger
 
 logger = get_logger(__name__)
+router_logger = get_logger("ai_router")
 
 
 class AIProviderRouter:
@@ -156,39 +158,75 @@ class AIProviderRouter:
             FallbackFailedError: If both primary and fallback providers fail
         """
         provider_name = provider or self._default
-        
+
+        async def _invoke(client: AIProvider, name: str) -> AIResponse:
+            model = getattr(client, "model_default", None)
+            router_logger.info(f"[ROUTER] Selected provider={name} model={model}")
+            return await log_ai_call(
+                provider_name=name,
+                model=model,
+                operation="router.generate",
+                coro=lambda: client.generate(prompt, **kwargs)
+            )
+
         # 1. Get primary provider
         try:
             logger.info(f"Generating with provider: {provider_name}")
             client = self.get(provider_name)
         except ValueError as exc:
             raise ProviderUnavailableError(str(exc)) from exc
-        
+
         # 2. Primary attempt
         try:
-            response = await client.generate(prompt, **kwargs)
-            logger.info(f"Successfully generated with {provider_name}")
-            return response
-            
+            return await _invoke(client, provider_name)
+
         except Exception as primary_exc:
-            logger.warning(f"Provider {provider_name} failed: {primary_exc}")
-            
+            status_code = None
+            if hasattr(primary_exc, "response") and getattr(primary_exc.response, "status_code", None):
+                status_code = primary_exc.response.status_code
+            elif hasattr(primary_exc, "status_code"):
+                status_code = getattr(primary_exc, "status_code", None)
+
+            should_switch = bool(self._fallback and self._fallback != provider_name)
+            router_logger.info(
+                f"[RETRY] Provider={provider_name}, attempt=1, error={primary_exc}, switching={should_switch}"
+            )
+
+            # Immediate fallback on HTTP 520 from OpenAI
+            if status_code == 520 and should_switch:
+                router_logger.warning(
+                    f"[FALLBACK] Switching from {provider_name} to {self._fallback} due to HTTP 520"
+                )
+                try:
+                    fallback_client = self.get(self._fallback)
+                    return await _invoke(fallback_client, self._fallback)
+                except Exception as fallback_exc:
+                    router_logger.error(
+                        f"[FALLBACK] Failed after HTTP 520: fallback {self._fallback} error={fallback_exc}"
+                    )
+                    raise FallbackFailedError(
+                        f"Primary provider '{provider_name}' failed with 520: {primary_exc}; "
+                        f"Fallback provider '{self._fallback}' failed: {fallback_exc}"
+                    ) from fallback_exc
+
             # If no fallback configured or fallback is same as primary -> raise error
-            if not self._fallback or self._fallback == provider_name:
+            if not should_switch:
                 raise ProviderUnavailableError(
                     f"Primary provider '{provider_name}' failed: {primary_exc}"
                 ) from primary_exc
-            
-            # 3. Fallback attempt
-            logger.info(f"Attempting fallback to: {self._fallback}")
+
+            # 3. Fallback attempt (general)
+            router_logger.warning(
+                f"[FALLBACK] Switching from {provider_name} to {self._fallback} due to error: {primary_exc}"
+            )
             try:
                 fallback_client = self.get(self._fallback)
-                response = await fallback_client.generate(prompt, **kwargs)
-                logger.info(f"Successfully generated with fallback {self._fallback}")
-                return response
-                
+                return await _invoke(fallback_client, self._fallback)
+
             except Exception as fallback_exc:
-                logger.error(f"Fallback provider {self._fallback} also failed: {fallback_exc}")
+                router_logger.error(
+                    f"[FALLBACK] Provider {self._fallback} failed after {provider_name}: {fallback_exc}"
+                )
                 raise FallbackFailedError(
                     f"Primary provider '{provider_name}' failed: {primary_exc}; "
                     f"Fallback provider '{self._fallback}' failed: {fallback_exc}"

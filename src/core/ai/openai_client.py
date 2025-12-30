@@ -15,6 +15,7 @@ from src.core.logging.logger import get_logger
 from src.core.logging.timing import log_timing
 
 logger = get_logger(__name__)
+router_logger = get_logger("ai_router")
 
 
 class OpenAIClient:
@@ -63,7 +64,7 @@ class OpenAIClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        max_retries: int = 5,
+        max_retries: int = 2,
         **kwargs: Any
     ) -> AIResponse:
         """
@@ -131,6 +132,9 @@ class OpenAIClient:
                 # Handle rate limit errors (429)
                 if "rate_limit" in error_text.lower() or "429" in error_text:
                     logger.warning(f"[OpenAI] Rate limit hit on attempt {attempt}: {e}")
+                    router_logger.info(
+                        f"[RETRY] Provider=openai, attempt={attempt}, error={e}, switching=False"
+                    )
                     
                     if attempt == max_retries:
                         logger.error("[OpenAI] Max retries reached, giving up")

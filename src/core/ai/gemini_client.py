@@ -15,6 +15,7 @@ from src.core.logging.logger import get_logger
 from src.core.logging.timing import log_timing
 
 logger = get_logger(__name__)
+router_logger = get_logger("ai_router")
 
 
 class GeminiClient:
@@ -83,7 +84,7 @@ class GeminiClient:
         self,
         prompt: str,
         model: Optional[str] = None,
-        max_retries: int = 3,
+        max_retries: int = 2,
         **kwargs: Any
     ) -> AIResponse:
         """
@@ -193,6 +194,9 @@ class GeminiClient:
                 # Handle rate limit errors (429) and quota errors (503)
                 if status_code in (429, 503):
                     logger.warning(f"[Gemini] Rate limit/quota hit on attempt {attempt}: {e}")
+                    router_logger.info(
+                        f"[RETRY] Provider=gemini, attempt={attempt}, error={e}, switching=False"
+                    )
                     
                     if attempt == max_retries:
                         logger.error("[Gemini] Max retries reached, giving up")
