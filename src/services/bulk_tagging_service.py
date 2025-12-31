@@ -176,6 +176,7 @@ class BulkTaggingService:
                 logger.debug(f"[TagPages] Extracted {len(text)} chars from page {page_id}")
                 
                 # Формуємо індивідуальний AI-промпт на основі контенту
+                logger.info(f"[TagPages] Calling TaggingAgent via router for page {page_id}")
                 from src.agents.tagging_agent import TaggingAgent
                 agent = TaggingAgent(ai_router=router)
                 tags = await agent.suggest_tags(text)
@@ -458,7 +459,10 @@ class BulkTaggingService:
                 
                 # Generate tags with dynamic whitelist filtering (already deduplicated in agent)
                 # Fallback to section tags if content is too short or contains only links
-                logger.info(f"[tag-tree] Generating tags with allowed_labels filter")
+                logger.info(
+                    f"[TagTree] Calling SummaryAgent.generate_tags_for_tree via router for page {page_id}",
+                    extra={"page_id": page_id, "allowed_labels_count": len(allowed_labels)}
+                )
                 suggested_tags = await summary_agent.generate_tags_for_tree(
                     content=text_content,
                     allowed_labels=allowed_labels,
@@ -466,7 +470,7 @@ class BulkTaggingService:
                     page_id=page_id
                 )
                 # suggested_tags are already deduplicated and filtered by generate_tags_for_tree
-                logger.info(f"[tag-tree] Generated {len(suggested_tags)} filtered tags: {suggested_tags}")
+                logger.info(f"[TagTree] Generated {len(suggested_tags)} filtered tags: {suggested_tags}")
                 
                 # Get current labels
                 current_labels = await self.confluence.get_labels(page_id)

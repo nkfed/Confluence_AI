@@ -125,7 +125,12 @@ tool-теги:
 
         # Use router if available with unified logging
         if self._ai_router is not None:
+            logger.info(f"[TaggingAgent] Using AI router (provider={self._ai_provider or 'default'})")
             provider = self._ai_router.get(self._ai_provider)
+            logger.info(
+                f"[TaggingAgent] Router selected provider",
+                extra={"provider": provider.name, "model": provider.model_default}
+            )
             ai_response = await log_ai_call(
                 provider_name=provider.name,
                 model=provider.model_default,
