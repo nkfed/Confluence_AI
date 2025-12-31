@@ -931,9 +931,9 @@ class BulkTaggingService:
                 if not filtered_tags:
                     no_tags_count += 1
                     logger.debug(f"[ReadTags] Page {page_id} has no matching tags")
-                    continue
+                    # Still add to results even if no tags
                 
-                # Add to results
+                # Add to results (always)
                 results.append({
                     "page_id": page_id,
                     "title": page_title,
