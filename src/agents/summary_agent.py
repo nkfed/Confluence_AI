@@ -74,13 +74,10 @@ class SummaryAgent(BaseAgent):
 
         logger.info("Step 5: Calling AI provider")
         if self._ai_router is not None:
-            # Use router with unified logging
-            provider = self._ai_router.get(self._ai_provider)
-            ai_response = await log_ai_call(
-                provider_name=provider.name,
-                model=provider.model_default,
-                operation="summary",
-                coro=lambda: provider.generate(prompt)
+            # Use router.generate() which includes log_ai_call() and router logging
+            ai_response = await self._ai_router.generate(
+                prompt=prompt,
+                provider=self._ai_provider
             )
             summary = ai_response.text
             logger.info(f"Step 5.1: AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
@@ -256,16 +253,14 @@ class SummaryAgent(BaseAgent):
             f"[TagTree] Calling AI for tag suggestions (router={self._ai_router is not None}, provider={self._ai_provider})"
         )
         if self._ai_router is not None:
-            provider = self._ai_router.get(self._ai_provider)
+            # Use router.generate() which includes log_ai_call() and router logging
             logger.info(
-                f"[TagTree] Using provider for tag-tree", 
-                extra={"provider": provider.name, "model": provider.model_default}
+                f"[TagTree] Using router.generate() for tag-tree", 
+                extra={"provider": self._ai_provider or "default"}
             )
-            ai_response_obj = await log_ai_call(
-                provider_name=provider.name,
-                model=provider.model_default,
-                operation="tag-tree",
-                coro=lambda: provider.generate(prompt)
+            ai_response_obj = await self._ai_router.generate(
+                prompt=prompt,
+                provider=self._ai_provider
             )
             ai_response = ai_response_obj.text
             logger.debug(f"AI response: {ai_response[:500]}")
