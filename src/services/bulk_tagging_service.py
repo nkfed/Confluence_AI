@@ -847,3 +847,115 @@ class BulkTaggingService:
                 TASK_TIMESTAMPS[task_id]["finish"] = datetime.utcnow().isoformat()
             
             logger.info(f"[TagSpace] Task {task_id} cleaned up (removed from ACTIVE_TASKS and TASK_PROGRESS)")
+    async def read_tags(
+        self,
+        space_key: str,
+        root_id: Optional[str] = None,
+        tag_substrings: Optional[str] = None
+    ) -> dict:
+        """
+        Read current tags on pages in a space or subtree.
+        
+        Args:
+            space_key: Confluence space key
+            root_id: Optional root page ID to read only descendants
+            tag_substrings: Optional comma-separated list of substrings to filter tags
+                           (e.g., "doc,domain,kb" will match any tag containing these)
+        
+        Returns:
+            {
+                "total": int,
+                "processed": int,
+                "no_tags": int,
+                "errors": int,
+                "details": [
+                    {
+                        "page_id": str,
+                        "title": str,
+                        "existing_tags": List[str]
+                    }
+                ]
+            }
+        """
+        logger.info(
+            f"[ReadTags] Starting read_tags for space={space_key}, "
+            f"root_id={root_id}, tag_substrings={tag_substrings}"
+        )
+        
+        # Parse tag substrings if provided
+        substrings = []
+        if tag_substrings:
+            substrings = [s.strip() for s in tag_substrings.split(",") if s.strip()]
+            logger.info(f"[ReadTags] Filtering by tag substrings: {substrings}")
+        
+        # Determine which pages to read
+        if root_id:
+            logger.info(f"[ReadTags] Collecting page tree from root {root_id}")
+            page_ids = await self._collect_all_children(root_id)
+            logger.info(f"[ReadTags] Collected {len(page_ids)} pages in tree")
+        else:
+            logger.info(f"[ReadTags] Reading all pages in space {space_key}")
+            space_pages = await self.confluence.get_space_pages(space_key)
+            page_ids = [str(page["id"]) for page in space_pages]
+            logger.info(f"[ReadTags] Found {len(page_ids)} pages in space")
+        
+        results = []
+        no_tags_count = 0
+        error_count = 0
+        
+        for i, page_id in enumerate(page_ids, 1):
+            try:
+                logger.debug(f"[ReadTags] Processing page {i}/{len(page_ids)}: {page_id}")
+                
+                # Get page info
+                page = await self.confluence.get_page(page_id)
+                if not page:
+                    logger.warning(f"[ReadTags] Page {page_id} not found")
+                    error_count += 1
+                    continue
+                
+                page_title = page.get("title", "Unknown")
+                
+                # Get current tags
+                existing_tags = await self.confluence.get_labels(page_id)
+                
+                # Apply substring filter if provided
+                if substrings:
+                    filtered_tags = [
+                        tag for tag in existing_tags
+                        if any(sub.lower() in tag.lower() for sub in substrings)
+                    ]
+                else:
+                    filtered_tags = existing_tags
+                
+                # Count pages with no matching tags
+                if not filtered_tags:
+                    no_tags_count += 1
+                    logger.debug(f"[ReadTags] Page {page_id} has no matching tags")
+                    continue
+                
+                # Add to results
+                results.append({
+                    "page_id": page_id,
+                    "title": page_title,
+                    "existing_tags": filtered_tags
+                })
+                
+                logger.debug(f"[ReadTags] Page {page_id}: {len(filtered_tags)} tags")
+                
+            except Exception as e:
+                logger.error(f"[ReadTags] Error processing page {page_id}: {e}")
+                error_count += 1
+        
+        logger.info(
+            f"[ReadTags] Completed: processed={len(page_ids)}, "
+            f"with_tags={len(results)}, no_tags={no_tags_count}, errors={error_count}"
+        )
+        
+        return {
+            "total": len(page_ids),
+            "processed": len(page_ids),
+            "no_tags": no_tags_count,
+            "errors": error_count,
+            "details": results
+        }
