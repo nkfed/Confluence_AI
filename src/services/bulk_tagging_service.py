@@ -895,8 +895,7 @@ class BulkTaggingService:
             logger.info(f"[ReadTags] Collected {len(page_ids)} pages in tree")
         else:
             logger.info(f"[ReadTags] Reading all pages in space {space_key}")
-            space_pages = await self.confluence.get_space_pages(space_key)
-            page_ids = [str(page["id"]) for page in space_pages]
+            page_ids = await self.confluence.get_all_pages_in_space(space_key)
             logger.info(f"[ReadTags] Found {len(page_ids)} pages in space")
         
         results = []
