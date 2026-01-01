@@ -833,15 +833,14 @@ class BulkTaggingService:
             response = {
                 "task_id": task_id,
                 "total": len(page_ids),
-                "processed": len(result['processed']),
-                "success": len(result['success']),
-                "errors": len(result['errors']),
-                "skipped_by_whitelist": len(result['skipped']),
+                "processed": result['processed'],  # ✅ Already an int from tag_pages
+                "success": result['success'],       # ✅ Already an int
+                "errors": result['errors'],         # ✅ Already an int
+                "skipped_by_whitelist": skipped_by_whitelist,  # ✅ Use local variable, not result
                 "dry_run": effective_dry_run,
                 "mode": mode,
                 "whitelist_enabled": whitelist_enabled,
-                "details": result['details'],
-                "root": root_page_id  # Ensure root is included in the response
+                "details": result['details']
             }
 
             return response
