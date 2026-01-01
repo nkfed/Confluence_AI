@@ -247,13 +247,10 @@ async def test_tag_space_processes_deep_subtree():
         config_path = f.name
     
     try:
-        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__') as mock_init:
-            def custom_init(self, config_path=None):
-                self.config_path = config_path
-                self.config = whitelist_config
-                self._allowed_ids_cache = {}
-            
-            mock_init.side_effect = custom_init
+        # ✅ Patch both __init__ and get_allowed_ids to bypass whitelist loading
+        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__', return_value=None), \
+             patch('src.core.whitelist.whitelist_manager.WhitelistManager.get_allowed_ids', 
+                   new_callable=AsyncMock, return_value={100, 101, 102, 103}):
             
             service = BulkTaggingService(confluence_client=mock_confluence)
             service.agent.mode = "TEST"
@@ -325,13 +322,10 @@ async def test_safe_test_allows_whitelist_subtree():
         config_path = f.name
     
     try:
-        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__') as mock_init:
-            def custom_init(self, config_path=None):
-                self.config_path = config_path
-                self.config = whitelist_config
-                self._allowed_ids_cache = {}
-            
-            mock_init.side_effect = custom_init
+        # ✅ Patch both __init__ and get_allowed_ids to bypass whitelist loading
+        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__', return_value=None), \
+             patch('src.core.whitelist.whitelist_manager.WhitelistManager.get_allowed_ids',
+                   new_callable=AsyncMock, return_value={100, 101, 102}):
             
             service = BulkTaggingService(confluence_client=mock_confluence)
             service.agent.mode = "SAFE_TEST"
@@ -417,13 +411,10 @@ async def test_safe_test_dry_run_does_not_write():
         config_path = f.name
     
     try:
-        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__') as mock_init:
-            def custom_init(self, config_path=None):
-                self.config_path = config_path
-                self.config = whitelist_config
-                self._allowed_ids_cache = {}
-            
-            mock_init.side_effect = custom_init
+        # ✅ Patch both __init__ and get_allowed_ids to bypass whitelist loading
+        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__', return_value=None), \
+             patch('src.core.whitelist.whitelist_manager.WhitelistManager.get_allowed_ids',
+                   new_callable=AsyncMock, return_value={100, 101}):
             
             service = BulkTaggingService(confluence_client=mock_confluence)
             service.agent.mode = "SAFE_TEST"
@@ -513,13 +504,10 @@ async def test_prod_mode_uses_whitelist_dry_run_true():
         config_path = f.name
     
     try:
-        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__') as mock_init:
-            def custom_init(self, config_path=None):
-                self.config_path = config_path
-                self.config = whitelist_config
-                self._allowed_ids_cache = {}
-            
-            mock_init.side_effect = custom_init
+        # ✅ Patch both __init__ and get_allowed_ids to bypass whitelist loading
+        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__', return_value=None), \
+             patch('src.core.whitelist.whitelist_manager.WhitelistManager.get_allowed_ids',
+                   new_callable=AsyncMock, return_value={100, 101}):
             
             service = BulkTaggingService(confluence_client=mock_confluence)
             service.agent.mode = "PROD"
@@ -602,13 +590,10 @@ async def test_prod_mode_uses_whitelist_dry_run_false():
         config_path = f.name
     
     try:
-        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__') as mock_init:
-            def custom_init(self, config_path=None):
-                self.config_path = config_path
-                self.config = whitelist_config
-                self._allowed_ids_cache = {}
-            
-            mock_init.side_effect = custom_init
+        # ✅ Patch both __init__ and get_allowed_ids to bypass whitelist loading
+        with patch('src.core.whitelist.whitelist_manager.WhitelistManager.__init__', return_value=None), \
+             patch('src.core.whitelist.whitelist_manager.WhitelistManager.get_allowed_ids',
+                   new_callable=AsyncMock, return_value={100, 101}):
             
             service = BulkTaggingService(confluence_client=mock_confluence)
             service.agent.mode = "PROD"
