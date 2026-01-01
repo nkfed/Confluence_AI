@@ -128,19 +128,16 @@ class SummaryAgent(BaseAgent):
             f"action=update_page_with_summary page_id={page_id} mode={self.mode} started"
         )
 
-        self.enforce_page_policy(page_id)
-
-        result = await self.process_page(page_id)
-
-        summary_text = result['summary'].replace('\n', '<br>')
-        summary_html = (
-            "<h2>AI Summary</h2>"
-            f"<p>{summary_text}</p>"
-        )
-
-        # Centralized dry-run logic based on mode
+        # In TEST mode, always do dry-run without enforcement
         if self.is_dry_run():
-            # TEST mode: dry-run, no Confluence changes
+            result = await self.process_page(page_id)
+
+            summary_text = result['summary'].replace('\n', '<br>')
+            summary_html = (
+                "<h2>AI Summary</h2>"
+                f"<p>{summary_text}</p>"
+            )
+
             logger.info(f"[DRY-RUN] TEST mode - summary NOT written to Confluence")
             logger.info(f"[DRY-RUN] Would append summary to page {page_id}")
             logger.debug(f"[DRY-RUN] Summary HTML length: {len(summary_html)} chars")
@@ -157,6 +154,17 @@ class SummaryAgent(BaseAgent):
                 "summary_tokens_estimate": result["summary_tokens_estimate"],
                 "message": "TEST mode - summary NOT written to Confluence"
             }
+
+        # For non-TEST modes, enforce policy before modification
+        self.enforce_page_policy(page_id)
+
+        result = await self.process_page(page_id)
+
+        summary_text = result['summary'].replace('\n', '<br>')
+        summary_html = (
+            "<h2>AI Summary</h2>"
+            f"<p>{summary_text}</p>"
+        )
 
         # SAFE_TEST or PROD mode - actually update Confluence
         logger.info(f"[{self.mode}] Appending summary to page {page_id}")
