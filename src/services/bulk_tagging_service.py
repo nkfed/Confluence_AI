@@ -351,28 +351,31 @@ class BulkTaggingService:
                     "errors": 1
                 }
             
-            # Перевірка що root_page_id в whitelist
-            logger.info(
-                f"[WHITELIST] Checking root_id={root_page_id} (type={type(root_page_id)}) "
-                f"against whitelist of {len(allowed_ids_str)} entries"
-            )
-            logger.error(
-                "[TAG-TREE-DEBUG] root_page_id=%s (type=%s)", root_page_id, type(root_page_id)
-            )
-            if str(root_page_id) not in allowed_ids_str:
-                logger.error(
-                    f"[TagTree] Root page {root_page_id} not in whitelist for space {space_key}"
+            # Перевірка що root_page_id в whitelist (крім PROD режиму)
+            if mode != "PROD":  # ✅ PROD дозволяє будь-які root_page_id
+                logger.info(
+                    f"[WHITELIST] Checking root_id={root_page_id} (type={type(root_page_id)}) "
+                    f"against whitelist of {len(allowed_ids_str)} entries"
                 )
-                return {
-                    "status": "error",
-                    "message": f"Root page {root_page_id} is not allowed by whitelist for space {space_key}",
-                    "total": 0,
-                    "processed": 0,
-                    "success": 0,
-                    "errors": 1,
-                    "whitelist_enabled": True,
-                    "root_page_allowed": False
-                }
+                logger.error(
+                    "[TAG-TREE-DEBUG] root_page_id=%s (type=%s)", root_page_id, type(root_page_id)
+                )
+                if str(root_page_id) not in allowed_ids_str:
+                    logger.error(
+                        f"[TagTree] Root page {root_page_id} not in whitelist for space {space_key}"
+                    )
+                    return {
+                        "status": "error",
+                        "message": f"Root page {root_page_id} is not allowed by whitelist for space {space_key}",
+                        "total": 0,
+                        "processed": 0,
+                        "success": 0,
+                        "errors": 1,
+                        "whitelist_enabled": True,
+                        "root_page_allowed": False
+                    }
+            else:
+                logger.info(f"[TagTree] PROD mode - skipping root_page_id whitelist check for {root_page_id}")
             
             logger.info(f"[TagTree] Root page {root_page_id} is in whitelist - allowed")
             
