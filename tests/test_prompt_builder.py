@@ -3,6 +3,7 @@ Unit tests for PromptBuilder and SummaryAgent tag-tree functionality.
 """
 import pytest
 from src.agents.prompt_builder import PromptBuilder
+from src.core.ai.interface import AIResponse
 from unittest.mock import AsyncMock, MagicMock, patch
 
 
@@ -89,11 +90,17 @@ class TestSummaryAgentTagging:
         from src.agents.summary_agent import SummaryAgent
         
         # Mock AI response with mix of allowed and disallowed tags
-        mock_ai_response = '{"doc": ["doc-tech", "doc-personal"], "domain": ["domain-helpdesk-site"]}'
+        mock_ai_response_text = '{"doc": ["doc-tech", "doc-personal"], "domain": ["domain-helpdesk-site"]}'
         
         agent = SummaryAgent()
+        mock_response = AIResponse(
+            text=mock_ai_response_text,
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
         agent.ai = AsyncMock()
-        agent.ai.generate = AsyncMock(return_value=mock_ai_response)
+        agent.ai.generate = AsyncMock(return_value=mock_response)
         
         # Use content that's long enough to avoid fallback (> 200 chars)
         content = "This is a comprehensive technical documentation page that covers various aspects. " * 5
@@ -112,11 +119,17 @@ class TestSummaryAgentTagging:
         """Test behavior with empty allowed labels list."""
         from src.agents.summary_agent import SummaryAgent
         
-        mock_ai_response = '{"doc": ["doc-tech"]}'
+        mock_ai_response_text = '{"doc": ["doc-tech"]}'
         
         agent = SummaryAgent()
+        mock_response = AIResponse(
+            text=mock_ai_response_text,
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
         agent.ai = AsyncMock()
-        agent.ai.generate = AsyncMock(return_value=mock_ai_response)
+        agent.ai.generate = AsyncMock(return_value=mock_response)
         
         # Use content that's long enough to avoid fallback (> 200 chars)
         content = "This is a comprehensive technical documentation page that covers various aspects. " * 5
@@ -132,11 +145,17 @@ class TestSummaryAgentTagging:
         """Test when all AI-suggested tags are in allowed list."""
         from src.agents.summary_agent import SummaryAgent
         
-        mock_ai_response = '{"doc": ["doc-tech"], "kb": ["kb-overview"]}'
+        mock_ai_response_text = '{"doc": ["doc-tech"], "kb": ["kb-overview"]}'
         
         agent = SummaryAgent()
+        mock_response = AIResponse(
+            text=mock_ai_response_text,
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
         agent.ai = AsyncMock()
-        agent.ai.generate = AsyncMock(return_value=mock_ai_response)
+        agent.ai.generate = AsyncMock(return_value=mock_response)
         
         # Use content that's long enough to avoid fallback (> 200 chars)
         content = "This is a comprehensive technical documentation page that covers various aspects. " * 5
@@ -194,11 +213,17 @@ class TestSummaryAgentTagging:
         from src.agents.summary_agent import SummaryAgent
         
         # Mock AI response with duplicate tags
-        mock_ai_response = '{"doc": ["doc-tech", "doc-tech"], "domain": ["domain-helpdesk-site", "doc-tech"]}'
+        mock_ai_response_text = '{"doc": ["doc-tech", "doc-tech"], "domain": ["domain-helpdesk-site", "doc-tech"]}'
         
         agent = SummaryAgent()
+        mock_response = AIResponse(
+            text=mock_ai_response_text,
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
         agent.ai = AsyncMock()
-        agent.ai.generate = AsyncMock(return_value=mock_ai_response)
+        agent.ai.generate = AsyncMock(return_value=mock_response)
         
         # Use content that's long enough to avoid fallback (> 200 chars)
         content = "This is a comprehensive technical documentation page that covers various aspects. " * 5
@@ -254,7 +279,9 @@ class TestSummaryAgentTagging:
             page_id="test-123"
         )
         
-        assert result == allowed_labels
+        # Check that result contains all expected tags (order may vary)
+        assert set(result) == set(allowed_labels)
+        assert len(result) == len(allowed_labels)
         agent.ai.generate.assert_not_called()
     
     @pytest.mark.asyncio
@@ -262,11 +289,17 @@ class TestSummaryAgentTagging:
         """Test that low-content pages with tag patterns are NOT treated as fallback."""
         from src.agents.summary_agent import SummaryAgent
         
-        mock_ai_response = '{"doc": ["doc-process", "kb-canonical"]}'
+        mock_ai_response_text = '{"doc": ["doc-process", "kb-canonical"]}'
         
         agent = SummaryAgent()
+        mock_response = AIResponse(
+            text=mock_ai_response_text,
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
         agent.ai = AsyncMock()
-        agent.ai.generate = AsyncMock(return_value=mock_ai_response)
+        agent.ai.generate = AsyncMock(return_value=mock_response)
         
         allowed_labels = ["doc-process", "kb-canonical", "kb-overview"]
         # Short content BUT contains tag patterns (should NOT fallback)
@@ -317,11 +350,17 @@ class TestSummaryAgentTagging:
         """Test that AI is called for pages with sufficient content."""
         from src.agents.summary_agent import SummaryAgent
         
-        mock_ai_response = '{"doc": ["doc-tech"]}'
+        mock_ai_response_text = '{"doc": ["doc-tech"]}'
         
         agent = SummaryAgent()
+        mock_response = AIResponse(
+            text=mock_ai_response_text,
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
         agent.ai = AsyncMock()
-        agent.ai.generate = AsyncMock(return_value=mock_ai_response)
+        agent.ai.generate = AsyncMock(return_value=mock_response)
         
         allowed_labels = ["doc-tech", "kb-overview"]
         # Long enough content (> 200 chars)

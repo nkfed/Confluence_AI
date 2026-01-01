@@ -132,6 +132,9 @@ tool-теги:
                 provider=self._ai_provider
             )
             raw = ai_response.text
+            if not isinstance(raw, str):
+                logger.warning(f"[TaggingAgent] AI returned non-string text={type(raw)}; coercing to str")
+                raw = str(raw)
             logger.debug(f"[TaggingAgent] AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
         else:
             # Legacy: direct OpenAI call

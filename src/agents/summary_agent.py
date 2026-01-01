@@ -79,7 +79,11 @@ class SummaryAgent(BaseAgent):
                 prompt=prompt,
                 provider=self._ai_provider
             )
-            summary = ai_response.text
+            text = ai_response.text
+            if not isinstance(text, str):
+                logger.warning(f"[SummaryAgent] AI returned non-string text={type(text)}; coercing to str")
+                text = str(text)
+            summary = text
             logger.info(f"Step 5.1: AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
         else:
             # Legacy: direct OpenAI call
@@ -128,9 +132,10 @@ class SummaryAgent(BaseAgent):
 
         result = await self.process_page(page_id)
 
+        summary_text = result['summary'].replace('\n', '<br>')
         summary_html = (
             "<h2>AI Summary</h2>"
-            f"<p>{result['summary'].replace('\n', '<br>')}</p>"
+            f"<p>{summary_text}</p>"
         )
 
         # Centralized dry-run logic based on mode

@@ -39,8 +39,10 @@ def test_tag_space_empty_body(mock_bulk_tagging_service):
     
     assert response.status_code == 200
     data = response.json()
-    assert "total" in data
-    assert "processed" in data
+    assert "task_id" in data
+    assert isinstance(data["task_id"], str)
+    assert "status" in data
+    assert data["status"] in ("queued", "processing", "done")
 
 
 def test_tag_space_empty_json_object(mock_bulk_tagging_service):
@@ -55,7 +57,10 @@ def test_tag_space_empty_json_object(mock_bulk_tagging_service):
     
     assert response.status_code == 200
     data = response.json()
-    assert "total" in data
+    assert "task_id" in data
+    assert isinstance(data["task_id"], str)
+    assert "status" in data
+    assert data["status"] in ("queued", "processing", "done")
 
 
 def test_tag_space_with_query_params(mock_bulk_tagging_service):
@@ -83,7 +88,13 @@ def test_tag_space_no_content_type(mock_bulk_tagging_service):
     # POST без Content-Type header
     response = client.post("/bulk/tag-space/TEST")
     
+    # Updated checks for new response structure
     assert response.status_code == 200
+    data = response.json()
+    assert "task_id" in data
+    assert isinstance(data["task_id"], str)
+    assert "status" in data
+    assert data["status"] in ("queued", "processing", "done")
 
 
 def test_tag_space_with_null_body(mock_bulk_tagging_service):
@@ -98,6 +109,11 @@ def test_tag_space_with_null_body(mock_bulk_tagging_service):
     
     # Має працювати оскільки тіло необов'язкове
     assert response.status_code == 200
+    data = response.json()
+    assert "task_id" in data
+    assert isinstance(data["task_id"], str)
+    assert "status" in data
+    assert data["status"] in ("queued", "processing", "done")
 
 
 @pytest.mark.parametrize("space_key", [

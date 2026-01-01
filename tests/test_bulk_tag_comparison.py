@@ -44,7 +44,7 @@ async def test_bulk_tag_pages_dry_run():
     
     print(f"\n[TEST] Bulk tagging {len(page_ids)} pages with dry_run=True")
     
-    result = await service.tag_pages(page_ids, dry_run=True)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=True)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -93,7 +93,7 @@ async def test_bulk_tag_pages_real_update():
     
     print(f"\n[TEST] Bulk tagging {len(page_ids)} pages with dry_run=False")
     
-    result = await service.tag_pages(page_ids, dry_run=False)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")

@@ -10,6 +10,7 @@ from src.agents.tagging_agent import TaggingAgent
 from src.clients.openai_client import OpenAIClient
 from src.core.ai.router import AIProviderRouter
 from src.core.ai.interface import AIResponse
+from types import SimpleNamespace
 
 
 class TestTaggingAgentWithRouter:
@@ -28,7 +29,7 @@ class TestTaggingAgentWithRouter:
         
         # Mock provider
         mock_provider = MagicMock()
-        mock_provider.generate = AsyncMock(return_value=mock_ai_response)
+        mock_provider.generate = AsyncMock(return_value={"text": "generated text"})
         
         # Mock router
         mock_router = MagicMock(spec=AIProviderRouter)

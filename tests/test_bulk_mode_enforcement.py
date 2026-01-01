@@ -41,7 +41,7 @@ async def test_bulk_tagging_prod_mode():
     print(f"  Non-whitelist page: {non_whitelist_page}")
     
     # Run with dry_run=False (real update)
-    result = await service.tag_pages(page_ids, dry_run=False)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -102,7 +102,7 @@ async def test_bulk_tagging_safe_test_mode():
     print(f"\n[TEST] Testing bulk tagging in SAFE_TEST mode")
     
     # Run with dry_run=False
-    result = await service.tag_pages(page_ids, dry_run=False)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -152,7 +152,7 @@ async def test_bulk_tagging_test_mode():
     print(f"\n[TEST] Testing bulk tagging in TEST mode with dry_run=False")
     
     # Run with dry_run=False (should still be blocked)
-    result = await service.tag_pages(page_ids, dry_run=False)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=False)
     
     print(f"\n[TEST] Result:")
     for detail in result["details"]:

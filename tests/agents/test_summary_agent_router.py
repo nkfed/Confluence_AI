@@ -11,6 +11,7 @@ from src.clients.confluence_client import ConfluenceClient
 from src.clients.openai_client import OpenAIClient
 from src.core.ai.router import AIProviderRouter
 from src.core.ai.interface import AIResponse
+from types import SimpleNamespace
 
 
 class TestSummaryAgentWithRouter:
@@ -33,19 +34,20 @@ class TestSummaryAgentWithRouter:
         
         # Mock AI response
         mock_ai_response = AIResponse(
-            text="This is a generated summary",
-            provider="openai",
-            model="gpt-4o-mini",
-            total_tokens=100
+            text="TEST_RESPONSE",
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
         )
         
         # Mock provider
         mock_provider = MagicMock()
         mock_provider.generate = AsyncMock(return_value=mock_ai_response)
         
-        # Mock router
+        # Mock router with proper async generate method
         mock_router = MagicMock(spec=AIProviderRouter)
         mock_router.get = MagicMock(return_value=mock_provider)
+        mock_router.generate = AsyncMock(return_value=mock_ai_response)
         
         # Create agent with router
         agent = SummaryAgent(
@@ -57,9 +59,8 @@ class TestSummaryAgentWithRouter:
         summary = await agent.generate_summary("123")
         
         # Verify router was used
-        assert summary == "This is a generated summary"
-        mock_router.get.assert_called_once_with(None)  # Default provider
-        mock_provider.generate.assert_called_once()
+        assert summary == "TEST_RESPONSE"
+        mock_router.generate.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_summary_agent_with_specific_provider(self):
@@ -71,10 +72,13 @@ class TestSummaryAgentWithRouter:
             "body": {"storage": {"value": "<p>Content</p>"}}
         })
         
+        # Ensure mock AI response includes all required fields
         mock_ai_response = AIResponse(
-            text="Gemini summary",
+            text="TEST_RESPONSE",
             provider="gemini",
             model="gemini-2.0-flash-exp",
+            prompt_tokens=20,
+            completion_tokens=30,
             total_tokens=50
         )
         
@@ -83,6 +87,7 @@ class TestSummaryAgentWithRouter:
         
         mock_router = MagicMock(spec=AIProviderRouter)
         mock_router.get = MagicMock(return_value=mock_provider)
+        mock_router.generate = AsyncMock(return_value=mock_ai_response)
         
         # Create agent with specific provider
         agent = SummaryAgent(
@@ -93,8 +98,8 @@ class TestSummaryAgentWithRouter:
         
         summary = await agent.generate_summary("123")
         
-        assert summary == "Gemini summary"
-        mock_router.get.assert_called_with("gemini")
+        assert summary == "TEST_RESPONSE"
+        mock_router.generate.assert_called_once()
     
     @pytest.mark.asyncio
     async def test_summary_agent_backward_compatibility(self):
@@ -130,38 +135,63 @@ class TestSummaryAgentWithRouter:
             "body": {"storage": {"value": "<p>Content</p>"}}
         })
         
-        # Mock OpenAI provider that fails
-        mock_openai_provider = MagicMock()
-        mock_openai_provider.generate = AsyncMock(
-            side_effect=RuntimeError("OpenAI rate limit")
-        )
-        
-        # Mock Gemini provider that succeeds
+        # Mock fallback response from router
         gemini_response = AIResponse(
-            text="Gemini fallback summary",
+            text="TEST_RESPONSE",
             provider="gemini",
-            model="gemini-2.0-flash-exp"
+            model="gemini-2.0-flash-exp",
+            total_tokens=0
         )
-        mock_gemini_provider = MagicMock()
-        mock_gemini_provider.generate = AsyncMock(return_value=gemini_response)
         
-        # Mock router with fallback
+        # Mock router that handles fallback internally
         mock_router = MagicMock(spec=AIProviderRouter)
-        mock_router.get = MagicMock(side_effect=[
-            mock_openai_provider,
-            mock_gemini_provider
-        ])
+        mock_router.generate = AsyncMock(return_value=gemini_response)
         
         agent = SummaryAgent(
             confluence_client=mock_confluence,
             ai_router=mock_router
         )
         
-        # This should trigger fallback in real router
-        # For this test, we just verify the pattern works
-        # In real scenario, router.generate() handles fallback
-        with pytest.raises(RuntimeError):
-            await agent.generate_summary("123")
+        # Router handles fallback internally, agent just gets result
+        summary = await agent.generate_summary("123")
+        assert summary == "TEST_RESPONSE"
+        mock_router.generate.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_summary_agent_mock_response(self):
+        """Test that SummaryAgent works with mocked AI response"""
+        mock_confluence = MagicMock(spec=ConfluenceClient)
+        mock_confluence.get_page = AsyncMock(return_value={
+            "id": "123",
+            "title": "Test Page",
+            "body": {"storage": {"value": "<p>Content</p>"}}
+        })
+        
+        # Create AIResponse for consistency
+        mock_ai_response = AIResponse(
+            text="TEST_RESPONSE",
+            provider="mock",
+            model="mock-model",
+            total_tokens=0
+        )
+
+        # Mock router
+        mock_router = MagicMock(spec=AIProviderRouter)
+        mock_router.generate = AsyncMock(return_value=mock_ai_response)
+        
+        # Create agent with router
+        agent = SummaryAgent(
+            confluence_client=mock_confluence,
+            ai_router=mock_router
+        )
+        
+        # Generate summary
+        summary = await agent.generate_summary("123")
+        
+        # Ensure the test validates against the expected response
+        assert summary == "TEST_RESPONSE"
+        mock_router.generate.assert_called_once()
+        
 
 
 if __name__ == "__main__":

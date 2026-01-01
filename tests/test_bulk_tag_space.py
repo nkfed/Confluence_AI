@@ -56,7 +56,6 @@ def mock_tagging_agent():
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"AGENT_MODE": "TEST"})
 async def test_bulk_tag_space_test_mode_always_dry_run(
     mock_confluence_client,
     mock_tagging_agent
@@ -66,7 +65,8 @@ async def test_bulk_tag_space_test_mode_always_dry_run(
     """
     orchestrator = BulkTagOrchestrator(
         confluence_client=mock_confluence_client,
-        tagging_agent=mock_tagging_agent
+        tagging_agent=mock_tagging_agent,
+        mode=AgentMode.TEST
     )
     
     # Спробувати з dry_run=False (має бути проігноровано)
@@ -84,7 +84,6 @@ async def test_bulk_tag_space_test_mode_always_dry_run(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"AGENT_MODE": "PROD"})
 async def test_bulk_tag_space_prod_mode_respects_dry_run(
     mock_confluence_client,
     mock_tagging_agent
@@ -92,32 +91,27 @@ async def test_bulk_tag_space_prod_mode_respects_dry_run(
     """
     Тест: PROD режим дозволяє контролювати dry_run.
     """
-    with patch("src.core.bulk_tag_orchestrator.AgentModeResolver") as mock_resolver:
-        mock_resolver.resolve_mode.return_value = AgentMode.PROD
-        mock_resolver.resolve_whitelist.return_value = []
-        mock_resolver.can_modify_confluence.return_value = True
-        
-        orchestrator = BulkTagOrchestrator(
-            confluence_client=mock_confluence_client,
-            tagging_agent=mock_tagging_agent
-        )
-        
-        # Test dry_run=False
-        result = await orchestrator.tag_space(
-            space_key="TEST",
-            dry_run_override=False
-        )
-        
-        # Verify PROD mode allows writes
-        assert result["dry_run"] is False
-        assert result["mode"] == AgentMode.PROD
-        
-        # Verify actual writes attempted
-        assert mock_confluence_client.add_labels.call_count > 0
+    orchestrator = BulkTagOrchestrator(
+        confluence_client=mock_confluence_client,
+        tagging_agent=mock_tagging_agent,
+        mode=AgentMode.PROD
+    )
+    
+    # Test dry_run=False
+    result = await orchestrator.tag_space(
+        space_key="TEST",
+        dry_run_override=False
+    )
+    
+    # Verify PROD mode allows writes
+    assert result["dry_run"] is False
+    assert result["mode"] == AgentMode.PROD
+    
+    # Verify actual writes attempted
+    assert mock_confluence_client.add_labels.call_count > 0
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"AGENT_MODE": "SAFE_TEST", "TAGGING_AGENT_TEST_PAGE": "123"})
 async def test_bulk_tag_space_safe_test_whitelist(
     mock_confluence_client,
     mock_tagging_agent
@@ -125,24 +119,23 @@ async def test_bulk_tag_space_safe_test_whitelist(
     """
     Тест: SAFE_TEST режим застосовує whitelist.
     """
-    with patch("src.core.bulk_tag_orchestrator.AgentModeResolver") as mock_resolver:
-        mock_resolver.resolve_mode.return_value = AgentMode.SAFE_TEST
-        mock_resolver.resolve_whitelist.return_value = ["123"]  # Only page 123
-        mock_resolver.can_modify_confluence = lambda mode, page_id, whitelist: page_id in whitelist
-        
-        orchestrator = BulkTagOrchestrator(
-            confluence_client=mock_confluence_client,
-            tagging_agent=mock_tagging_agent
-        )
-        
-        result = await orchestrator.tag_space(
-            space_key="TEST",
-            dry_run_override=False
-        )
-        
-        # Verify whitelist filtering
-        assert result["skipped_count"] == 1  # Page 456 skipped
-        assert result["processed"] == 1      # Only page 123 processed
+    orchestrator = BulkTagOrchestrator(
+        confluence_client=mock_confluence_client,
+        tagging_agent=mock_tagging_agent,
+        mode=AgentMode.SAFE_TEST
+    )
+    
+    # Встановити whitelist: тільки page 123 дозволена
+    orchestrator.filter_service.whitelist = ["123"]
+    
+    result = await orchestrator.tag_space(
+        space_key="TEST",
+        dry_run_override=False
+    )
+    
+    # Verify whitelist filtering
+    assert result["skipped_count"] == 1  # Page 456 skipped
+    assert result["processed"] == 1      # Only page 123 processed
 
 
 @pytest.mark.asyncio
@@ -171,25 +164,21 @@ async def test_bulk_tag_space_filters_archived_pages(
         }
     ])
     
-    with patch("src.core.bulk_tag_orchestrator.AgentModeResolver") as mock_resolver:
-        mock_resolver.resolve_mode.return_value = AgentMode.PROD
-        mock_resolver.resolve_whitelist.return_value = []
-        mock_resolver.can_modify_confluence.return_value = True
-        
-        orchestrator = BulkTagOrchestrator(
-            confluence_client=mock_confluence_client,
-            tagging_agent=mock_tagging_agent
-        )
-        
-        result = await orchestrator.tag_space(
-            space_key="TEST",
-            dry_run_override=False,
-            exclude_archived=True
-        )
-        
-        # Verify archived page was skipped
-        assert result["skipped_count"] == 1
-        assert result["skipped_pages"][0]["reason"] == "Page is archived"
+    orchestrator = BulkTagOrchestrator(
+        confluence_client=mock_confluence_client,
+        tagging_agent=mock_tagging_agent,
+        mode=AgentMode.PROD
+    )
+    
+    result = await orchestrator.tag_space(
+        space_key="TEST",
+        dry_run_override=False,
+        exclude_archived=True
+    )
+    
+    # Verify archived page was skipped
+    assert result["skipped_count"] == 1
+    assert result["skipped_pages"][0]["reason"] == "Page is archived"
 
 
 @pytest.mark.asyncio

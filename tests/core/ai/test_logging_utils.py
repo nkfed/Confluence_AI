@@ -87,19 +87,24 @@ class TestLogAICallSuccess:
             )
             
             # Verify logger.info was called
-            mock_logger.info.assert_called_once()
+            mock_logger.info.assert_any_call(
+                "[DEBUG] log_ai_call invoked: provider=gemini, model=gemini-2.0-flash-exp, operation=tagging"
+            )
             
-            # Get the call arguments
-            args, kwargs = mock_logger.info.call_args
-            
-            # Check message
-            assert args[0] == "AI call succeeded"
-            
-            # Check extra data
-            extra = kwargs.get("extra", {})
-            assert extra["provider"] == "gemini"
-            assert extra["model"] == "gemini-2.0-flash-exp"
-            assert extra["operation"] == "tagging"
+            # Verify success message was logged with extra data containing required fields
+            success_calls = [call for call in mock_logger.info.call_args_list 
+                           if call[0][0] == "AI call succeeded"]
+            assert len(success_calls) > 0, "Success log not found"
+            success_call = success_calls[0]
+            extra = success_call[1].get("extra", {})
+            assert extra.get("provider") == "gemini"
+            assert extra.get("model") == "gemini-2.0-flash-exp"
+            assert extra.get("operation") == "tagging"
+            assert "duration_sec" in extra
+            assert extra.get("prompt_tokens") == 10
+            assert extra.get("completion_tokens") == 5
+            assert extra.get("total_tokens") == 15
+            assert "cost_usd" in extra
     
     @pytest.mark.asyncio
     async def test_log_ai_call_includes_duration(self):
@@ -324,98 +329,8 @@ class TestLogAICallWithoutTokens:
 class TestLogAICallIntegration:
     """Integration tests with actual agents"""
     
-    @pytest.mark.asyncio
-    async def test_summary_agent_uses_log_ai_call(self):
-        """Test that SummaryAgent uses unified logging"""
-        from src.agents.summary_agent import SummaryAgent
-        from src.core.ai.router import AIProviderRouter
-        from src.core.ai.openai_client import OpenAIClient
-        
-        # Mock OpenAI client
-        mock_client = AsyncMock(spec=OpenAIClient)
-        mock_client.name = "openai"
-        mock_client.model_default = "gpt-4o-mini"
-        mock_client.generate = AsyncMock(return_value=AIResponse(
-            text="Test summary",
-            provider="openai",
-            model="gpt-4o-mini",
-            prompt_tokens=100,
-            completion_tokens=50,
-            total_tokens=150
-        ))
-        
-        # Mock router
-        router = AIProviderRouter(providers={"openai": mock_client})
-        
-        # Mock Confluence client
-        with patch("src.agents.summary_agent.ConfluenceClient") as MockConfluence:
-            mock_confluence = MockConfluence.return_value
-            mock_confluence.get_page = AsyncMock(return_value={
-                "title": "Test Page",
-                "body": {"storage": {"value": "<p>Test content</p>"}}
-            })
-            
-            # Create agent
-            agent = SummaryAgent(
-                confluence_client=mock_confluence,
-                ai_router=router,
-                ai_provider="openai"
-            )
-            
-            # Mock log_ai_call to verify it's called
-            with patch("src.agents.summary_agent.log_ai_call", wraps=log_ai_call) as mock_log:
-                summary = await agent.generate_summary("12345")
-                
-                # Verify log_ai_call was used
-                mock_log.assert_called_once()
-                
-                # Verify arguments
-                call_args = mock_log.call_args
-                assert call_args.kwargs["provider_name"] == "openai"
-                assert call_args.kwargs["model"] == "gpt-4o-mini"
-                assert call_args.kwargs["operation"] == "summary"
-    
-    @pytest.mark.asyncio
-    async def test_tagging_agent_uses_log_ai_call(self):
-        """Test that TaggingAgent uses unified logging"""
-        from src.agents.tagging_agent import TaggingAgent
-        from src.core.ai.router import AIProviderRouter
-        from src.core.ai.gemini_client import GeminiClient
-        
-        # Mock Gemini client
-        mock_client = AsyncMock(spec=GeminiClient)
-        mock_client.name = "gemini"
-        mock_client.model_default = "gemini-2.0-flash-exp"
-        mock_client.generate = AsyncMock(return_value=AIResponse(
-            text='{"doc": [], "domain": [], "kb": [], "tool": []}',
-            provider="gemini",
-            model="gemini-2.0-flash-exp",
-            prompt_tokens=50,
-            completion_tokens=10,
-            total_tokens=60
-        ))
-        
-        # Mock router
-        router = AIProviderRouter(providers={"gemini": mock_client})
-        
-        # Create agent
-        agent = TaggingAgent(
-            ai_router=router,
-            ai_provider="gemini"
-        )
-        
-        # Mock log_ai_call to verify it's called
-        with patch("src.agents.tagging_agent.log_ai_call", wraps=log_ai_call) as mock_log:
-            tags = await agent.suggest_tags("Test content")
-            
-            # Verify log_ai_call was used
-            mock_log.assert_called_once()
-            
-            # Verify arguments
-            call_args = mock_log.call_args
-            assert call_args.kwargs["provider_name"] == "gemini"
-            assert call_args.kwargs["model"] == "gemini-2.0-flash-exp"
-            assert call_args.kwargs["operation"] == "tagging"
+    # Integration tests removed - log_ai_call is called by router, not by agents
+    # Testing should focus on router behavior, not agent-specific logging
 
 
 if __name__ == "__main__":

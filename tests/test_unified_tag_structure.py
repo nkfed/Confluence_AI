@@ -83,7 +83,7 @@ async def test_unified_structure_bulk_tag_pages():
     service = BulkTaggingService(confluence_client=confluence_client)
     
     # Test dry-run
-    result = await service.tag_pages(page_ids, dry_run=True)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=True)
     
     print(f"  Total: {result.get('total')}")
     print(f"  Success: {result.get('success')}")
@@ -112,7 +112,7 @@ async def test_unified_structure_bulk_tag_tree():
     service = BulkTaggingService(confluence_client=confluence_client)
     
     # Test dry-run
-    result = await service.tag_tree(root_page_id, dry_run=True)
+    result = await service.tag_tree(space_key="euheals", root_page_id=root_page_id, dry_run=True)
     
     print(f"  Total: {result.get('total')}")
     print(f"  Success: {result.get('success')}")
@@ -146,10 +146,10 @@ async def test_unified_structure_consistency():
     auto_tag_result = await tagging_service.auto_tag_page(page_id, dry_run=True)
     
     print(f"  Fetching from /bulk/tag-pages...")
-    bulk_pages_result = await bulk_service.tag_pages([page_id], dry_run=True)
+    bulk_pages_result = await bulk_service.tag_pages([page_id], space_key="euheals", dry_run=True)
     
     print(f"  Fetching from /bulk/tag-tree...")
-    bulk_tree_result = await bulk_service.tag_tree(page_id, dry_run=True)
+    bulk_tree_result = await bulk_service.tag_tree(space_key="euheals", root_page_id=page_id, dry_run=True)
     
     # Verify all have tags structure
     assert "tags" in auto_tag_result, "/auto-tag missing 'tags'"

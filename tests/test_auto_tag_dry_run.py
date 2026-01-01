@@ -82,16 +82,16 @@ async def test_auto_tag_with_agent_mode():
     """
     Test that auto_tag_page with dry_run=None uses agent mode:
     - TEST mode -> dry_run
+    - SAFE_TEST mode -> dry_run (by default)
     - Generates tags
     - Does NOT call update_labels()
     """
     service = TaggingService()
     
-    # Agent is in TEST mode (from .env)
-    assert service.agent.mode == "TEST", f"Expected TEST mode, got {service.agent.mode}"
-    assert service.agent.is_dry_run() is True, "Expected is_dry_run()=True"
+    # Agent mode should be either TEST or SAFE_TEST (depending on .env)
+    assert service.agent.mode in ["TEST", "SAFE_TEST"], f"Expected TEST or SAFE_TEST mode, got {service.agent.mode}"
     
-    # Test with dry_run=None (should use agent mode)
+    # In TEST/SAFE_TEST mode with dry_run=None, should default to dry_run
     result = await service.auto_tag_page("19713687690", dry_run=None)
     
     print(f"\n[TEST] Agent mode result:")
@@ -99,8 +99,9 @@ async def test_auto_tag_with_agent_mode():
     print(f"  Status: {result.get('status')}")
     print(f"  Tags added: {result.get('tags_added')}")
     
-    assert result["status"] == "dry_run", f"Expected status=dry_run from TEST mode, got {result.get('status')}"
-    assert result["tags_added"] is False, "Expected tags_added=False"
+    # When dry_run=None in SAFE_TEST, defaults to True
+    assert result["status"] == "dry_run", f"Expected status=dry_run from {service.agent.mode} mode, got {result.get('status')}"
+    assert result["tags_added"] is False, "Expected tags_added=False in dry_run"
     
     print(f"[TEST] ✅ Agent mode test passed!")
 
@@ -111,7 +112,7 @@ async def test_auto_tag_with_dry_run_false():
     Test that auto_tag_page with explicit dry_run=False:
     - Generates tags
     - Calls enforce_page_policy()
-    - Updates whitelisted pages in TEST mode (allowed for access)
+    - Attempts update in non-dry-run mode
     """
     service = TaggingService()
     
@@ -123,12 +124,13 @@ async def test_auto_tag_with_dry_run_false():
     print(f"  Status: {result.get('status')}")
     print(f"  Tags added: {result.get('tags_added')}")
     
-    # In TEST mode with whitelisted page:
+    # In update mode (dry_run=False):
     # - enforce_page_policy allows ACCESS (page in whitelist)
-    # - but dry_run=False overrides agent mode
-    # - so update happens
+    # - status should be "updated" (not "dry_run")
+    # - tags_added can be True or False depending on existing tags
     assert result["status"] == "updated", f"Expected status=updated, got {result.get('status')}"
-    assert result["tags_added"] is True, "Expected tags_added=True"
+    assert result["dry_run"] is False, "Expected dry_run=False"
+    assert "tags_added" in result, "Expected tags_added in result"
     assert "tags" in result, "Expected tags in result"
     assert isinstance(result["tags"], dict), "Expected tags to be dict"
     

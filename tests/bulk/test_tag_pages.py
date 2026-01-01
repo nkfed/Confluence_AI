@@ -30,7 +30,7 @@ async def test_tag_pages_dry_run_false_with_skipped_ids():
          patch("src.services.tagging_service.TaggingService.auto_tag_page", return_value=mock_tags):
 
         service = BulkTaggingService(confluence_client=mock_confluence)
-        result = await service.tag_pages(page_ids, dry_run=False)
+        result = await service.tag_pages(page_ids, space_key="euheals", dry_run=False)
 
         # Перевірка whitelist-фільтрації
         assert result["total"] == 3
@@ -90,7 +90,7 @@ async def test_tag_pages_dry_run_true_processes_all_pages():
          patch("src.services.tagging_service.TaggingService.auto_tag_page", return_value=mock_tags):
 
         service = BulkTaggingService(confluence_client=mock_confluence)
-        result = await service.tag_pages(page_ids, dry_run=True)
+        result = await service.tag_pages(page_ids, space_key="euheals", dry_run=True)
 
         assert result["total"] == 2
         assert result["processed"] == 1

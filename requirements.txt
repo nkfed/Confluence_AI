@@ -7,4 +7,5 @@ uvicorn
 openai
 httpx
 loguru
-pytestbeautifulsoup4
+pytest
+beautifulsoup4

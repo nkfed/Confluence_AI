@@ -22,6 +22,7 @@ AgentModeResolver — централізований механізм визна
 import os
 from typing import List
 from settings import AgentMode
+from src.core.whitelist.whitelist_manager import WhitelistManager
 
 
 class AgentModeResolver:
@@ -60,21 +61,30 @@ class AgentModeResolver:
     @staticmethod
     def resolve_whitelist(agent_name: str) -> List[str]:
         """
-        Завантажує whitelist сторінок для агента з .env.
-        
-        Args:
-            agent_name: Назва агента (e.g., "SUMMARY_AGENT")
-            
-        Returns:
-            Список ID сторінок з whitelist
+        Завантажує whitelist сторінок лише з whitelist_config.json через WhitelistManager.
+        Env-перемінні та хардкоди не використовуються.
+        Повертає об'єднаний список усіх дозволених сторінок (у форматі str) по всіх просторах.
         """
-        key = f"{agent_name}_TEST_PAGE"
-        raw = os.getenv(key)
-        
-        if not raw:
+        from src.core.logging.logger import get_logger
+        logger = get_logger(__name__)
+
+        try:
+            manager = WhitelistManager()
+            all_ids: set[int] = set()
+            # Об'єднуємо явні id (entry points) з конфігурації для всіх просторів
+            for space in manager.config.get("spaces", []):
+                pages = space.get("pages", []) or []
+                explicit_ids = {int(page.get("id")) for page in pages if page.get("id")}
+                all_ids.update(explicit_ids)
+
+            page_ids = [str(pid) for pid in all_ids]
+            logger.info(
+                f"[WHITELIST] Loaded from whitelist_config.json for agent={agent_name}: {len(page_ids)} entries"
+            )
+            return page_ids
+        except Exception as e:
+            logger.error(f"[AgentModeResolver] Failed to load whitelist via WhitelistManager: {e}")
             return []
-        
-        return [p.strip() for p in raw.split(",") if p.strip()]
     
     @staticmethod
     def should_perform_dry_run(mode: str) -> bool:

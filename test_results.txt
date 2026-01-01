@@ -1,0 +1,38 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.0, pytest-9.0.2, pluggy-1.6.0 -- D:\Program Files\Python311\python.exe
+cachedir: .pytest_cache
+rootdir: D:\Projects\Confluence_AI
+configfile: pytest.ini
+plugins: anyio-4.12.0, asyncio-1.3.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function
+collecting ... collected 399 items / 8 errors
+
+============================== warnings summary ===============================
+settings.py:26
+  D:\Projects\Confluence_AI\settings.py:26: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class Settings(BaseSettings):
+
+src\models\tag_pages_models.py:18
+  D:\Projects\Confluence_AI\src\models\tag_pages_models.py:18: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    space_key: str = Field(
+
+src\models\tag_pages_models.py:23
+  D:\Projects\Confluence_AI\src\models\tag_pages_models.py:23: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    page_ids: List[str] = Field(
+
+src\models\tag_pages_models.py:9
+  D:\Projects\Confluence_AI\src\models\tag_pages_models.py:9: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TagPagesRequest(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+ERROR tests/agents/test_summary_agent.py
+ERROR tests/agents/test_summary_agent_router.py
+ERROR tests/test_agent_mode.py
+ERROR tests/test_agent_mode_resolver.py
+ERROR tests/test_summary_agent_dry_run.py
+ERROR tests/test_summary_dry_run.py
+ERROR tests/test_summary_mode.py
+ERROR tests/test_unified_agent_modes.py
+!!!!!!!!!!!!!!!!!!! Interrupted: 8 errors during collection !!!!!!!!!!!!!!!!!!!
+======================= 4 warnings, 8 errors in 16.33s ========================

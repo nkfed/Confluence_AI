@@ -123,7 +123,7 @@ class TestAIProviderRouterGenerate:
         )
         
         mock_openai = MagicMock()
-        mock_openai.generate = AsyncMock(return_value=mock_response)
+        mock_openai.generate = AsyncMock(return_value={"text": "Generated text"})
         
         router = AIProviderRouter(
             providers={"openai": mock_openai},
@@ -145,7 +145,7 @@ class TestAIProviderRouterGenerate:
         )
         
         mock_gemini = MagicMock()
-        mock_gemini.generate = AsyncMock(return_value=mock_response)
+        mock_gemini.generate = AsyncMock(return_value=SimpleNamespace(text="Gemini response"))
         
         router = AIProviderRouter(
             default_provider="openai",

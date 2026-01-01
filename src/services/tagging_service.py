@@ -78,9 +78,19 @@ class TaggingService:
         
         logger.info(
             f"[AutoTag] Starting auto-tag for page_id={page_id}, "
-            f"mode={mode}, dry_run_param={dry_run}, effective_dry_run={effective_dry_run}, space_key={space_key}"
+            f"space_key={space_key}, dry_run={effective_dry_run}"
         )
         
+        # Prepare response structure
+        response = {
+            "status": "dry_run" if effective_dry_run else "updated",
+            "page_id": page_id,
+            "mode": mode,
+            "dry_run": effective_dry_run,
+            "whitelist_enabled": bool(space_key),
+            "tags": None  # Placeholder for tag details
+        }
+
         # ✅ Whitelist validation (якщо space_key надано)
         whitelist_enabled = False
         allowed_ids = None
@@ -90,7 +100,9 @@ class TaggingService:
             
             try:
                 allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
-                logger.info(f"[AutoTag] Whitelist loaded: {len(allowed_ids)} allowed pages for {space_key}")
+                logger.info(
+                    f"[WHITELIST] Loaded from whitelist_config.json for space={space_key}: {len(allowed_ids)} entries"
+                )
                 logger.debug(f"[AutoTag] Allowed IDs: {sorted(list(allowed_ids))[:20]}")
                 
                 page_id_int = int(page_id)
@@ -165,13 +177,15 @@ class TaggingService:
                 "page_id": page_id,
                 "mode": mode,
                 "dry_run": effective_dry_run,
+                "tags_added": False,  # Never actually added in dry-run
                 "whitelist_enabled": whitelist_enabled,
                 "tags": {
                     "proposed": list(proposed),
                     "existing": list(existing),
-                    "added": [],
-                    "to_add": list(to_add)
-                }
+                    "added": [],  # Nothing added in dry-run
+                    "to_add": list(to_add)  # What would be added
+                },
+                "root_page_id": page_id
             }
 
         # Check page policy before updating
@@ -205,6 +219,7 @@ class TaggingService:
             "page_id": page_id,
             "mode": mode,
             "dry_run": effective_dry_run,
+            "tags_added": len(to_add) > 0,  # True if we actually added tags
             "whitelist_enabled": whitelist_enabled,
             "tags": {
                 "proposed": list(proposed),

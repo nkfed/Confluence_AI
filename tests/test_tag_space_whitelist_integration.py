@@ -66,6 +66,12 @@ async def test_tag_space_test_mode_whitelist_active(
         service.agent.mode = "TEST"
         
         result = await service.tag_space("TEST", dry_run=None)
+
+        # Updated checks for new response structure
+        assert "task_id" in result
+        assert isinstance(result["task_id"], str)
+        assert "status" in result
+        assert result["status"] in ("queued", "processing", "done")
         
         # Перевірки
         assert result["mode"] == "TEST"

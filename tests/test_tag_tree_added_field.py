@@ -28,7 +28,7 @@ async def test_tag_tree_added_field_dry_run():
     confluence_client = ConfluenceClient()
     service = BulkTaggingService(confluence_client=confluence_client)
     
-    result = await service.tag_tree(root_page_id, dry_run=True)
+    result = await service.tag_tree(space_key="euheals", root_page_id=root_page_id, dry_run=True)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -91,7 +91,7 @@ async def test_tag_tree_added_field_real_update():
     confluence_client = ConfluenceClient()
     service = BulkTaggingService(confluence_client=confluence_client)
     
-    result = await service.tag_tree(root_page_id, dry_run=False)
+    result = await service.tag_tree(space_key="euheals", root_page_id=root_page_id, dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -164,7 +164,7 @@ async def test_tag_tree_added_field_consistency():
             os.environ["TAGGING_AGENT_MODE"] = "SAFE_TEST"
         
         print(f"\n[TEST] Testing dry_run={dry_run}")
-        result = await service.tag_tree(root_page_id, dry_run=dry_run)
+        result = await service.tag_tree(space_key="euheals", root_page_id=root_page_id, dry_run=dry_run)
         
         for i, page_detail in enumerate(result.get('details', []), 1):
             # Verify unified tags structure exists

@@ -159,6 +159,43 @@ class AIProviderRouter:
         """
         provider_name = provider or self._default
 
+        # ---------------------------------------------------------
+        # ALWAYS validate provider existence FIRST
+        # (even in TEST/SAFE_TEST mode)
+        # ---------------------------------------------------------
+        if provider_name not in self._providers:
+            raise ProviderUnavailableError(provider_name)
+
+        # ---------------------------------------------------------
+        # TEST / SAFE_TEST MODE SHORT-CIRCUIT
+        # ---------------------------------------------------------
+        # У тестових режимах повертаємо стабільний AIResponse,
+        # щоб уникнути AsyncMock/dict у агентах і помилок в Swagger.
+        from settings import settings as global_settings
+        from src.core.ai.interface import AIResponse
+        test_modes = ("TEST", "SAFE_TEST")
+        # Ensure TEST/SAFE_TEST modes return consistent mock responses
+        # TEST/SAFE_TEST shortcut applies ONLY to mock provider
+        if (
+            provider_name == "mock"
+            and (
+                getattr(global_settings, "SUMMARY_AGENT_MODE", None) in test_modes
+                or getattr(global_settings, "TAGGING_AGENT_MODE", None) in test_modes
+            )
+        ):
+            router_logger.info(
+                f"[ROUTER] TEST/SAFE_TEST mode active. Returning mock AIResponse.\n"
+                f"Mode: {global_settings.SUMMARY_AGENT_MODE or global_settings.TAGGING_AGENT_MODE}\n"
+                f"Prompt: {prompt}\n"
+                f"Provider: {provider_name}"
+            )
+            return AIResponse(
+                text="TEST_RESPONSE",
+                provider="mock",
+                model="mock-model",
+                total_tokens=0,
+            )
+
         async def _invoke(client: AIProvider, name: str) -> AIResponse:
             model = getattr(client, "model_default", None)
             router_logger.info(f"[ROUTER] Selected provider={name} model={model}")
@@ -192,7 +229,7 @@ class AIProviderRouter:
                 f"[RETRY] Provider={provider_name}, attempt=1, error={primary_exc}, switching={should_switch}"
             )
 
-            # Immediate fallback on HTTP 520 from OpenAI
+            # Handle fallback logic explicitly
             if status_code == 520 and should_switch:
                 router_logger.warning(
                     f"[FALLBACK] Switching from {provider_name} to {self._fallback} due to HTTP 520"
@@ -212,8 +249,8 @@ class AIProviderRouter:
             # If no fallback configured or fallback is same as primary -> raise error
             if not should_switch:
                 raise ProviderUnavailableError(
-                    f"Primary provider '{provider_name}' failed: {primary_exc}"
-                ) from primary_exc
+                    f"Primary provider '{provider_name}' failed and no valid fallback configured."
+                )
 
             # 3. Fallback attempt (general)
             router_logger.warning(

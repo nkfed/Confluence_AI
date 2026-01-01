@@ -101,21 +101,50 @@ def test_validate_invalid_id(invalid_config_path):
     """Тест валідації з невалідним ID."""
     manager = WhitelistManager(invalid_config_path)
     warnings = manager.validate()
-    
+
     # Має бути warning про невалідний ID
-    id_warnings = [w for w in warnings if "not an integer" in w]
+    id_warnings = [w for w in warnings if "is invalid (must be a string of digits or an integer)" in w]
     assert len(id_warnings) > 0
+
+
+def test_mixed_id_types(tmp_path):
+    """Тест: змішані типи ID (int + str) → всі ID мають бути str."""
+    config = {
+        "spaces": [
+            {
+                "space_key": "MIXED",
+                "pages": [
+                    {"id": 100, "name": "Page 1", "root": True},
+                    {"id": "200", "name": "Page 2", "root": False},
+                    {"id": 300, "name": "Page 3", "root": False}
+                ]
+            }
+        ]
+    }
+
+    config_path = tmp_path / "mixed_whitelist.json"
+    with open(config_path, 'w', encoding='utf-8') as f:
+        json.dump(config, f)
+
+    manager = WhitelistManager(str(config_path))
+    entry_points = manager.get_entry_points("MIXED")
+
+    # Перевіряємо, що всі ID конвертовані до рядків
+    assert all(isinstance(ep["id"], str) for ep in entry_points)
+    assert entry_points[0]["id"] == "100"
+    assert entry_points[1]["id"] == "200"
+    assert entry_points[2]["id"] == "300"
 
 
 def test_get_entry_points_existing_space(test_config_path):
     """Тест отримання entry points для існуючого простору."""
     manager = WhitelistManager(test_config_path)
     entry_points = manager.get_entry_points("TEST")
-    
+
     assert len(entry_points) == 3
-    assert entry_points[0]["id"] == 100
+    assert entry_points[0]["id"] == "100"
     assert entry_points[0]["root"] is True
-    assert entry_points[1]["id"] == 200
+    assert entry_points[1]["id"] == "200"
     assert entry_points[1]["root"] is False
 
 
@@ -140,7 +169,7 @@ def test_get_entry_points_no_root(test_config_path):
 async def test_get_allowed_ids_with_children(test_config_path):
     """Тест побудови allowed_ids з дочірніми сторінками."""
     manager = WhitelistManager(test_config_path)
-    
+
     # Mock Confluence client - get_child_pages повертає list[str]
     mock_client = MagicMock()
     mock_client.get_child_pages = AsyncMock(side_effect=[
@@ -151,35 +180,31 @@ async def test_get_allowed_ids_with_children(test_config_path):
         [],  # Дочірні для 201
         []   # Дочірні для 300
     ])
-    
+
     allowed_ids = await manager.get_allowed_ids("TEST", mock_client)
-    
-    # Має включати: 100, 101, 102, 200, 201, 300
-    assert 100 in allowed_ids
-    assert 101 in allowed_ids
-    assert 102 in allowed_ids
-    assert 200 in allowed_ids
-    assert 201 in allowed_ids
-    assert 300 in allowed_ids
-    assert len(allowed_ids) == 6
+    # Має включати: "100", "101", "102", "200", "201", "300"
+    assert "100" in allowed_ids
+    assert "101" in allowed_ids
+    assert "102" in allowed_ids
+    assert "200" in allowed_ids
+    assert "201" in allowed_ids
+    assert "300" in allowed_ids
 
 
 @pytest.mark.asyncio
 async def test_get_allowed_ids_no_children(test_config_path):
     """Тест allowed_ids коли немає дочірніх сторінок."""
     manager = WhitelistManager(test_config_path)
-    
+
     # Mock Confluence client - no children
     mock_client = MagicMock()
     mock_client.get_child_pages = AsyncMock(return_value=[])
-    
+
     allowed_ids = await manager.get_allowed_ids("TEST", mock_client)
-    
-    # Має включати тільки entry points: 100, 200, 300
-    assert 100 in allowed_ids
-    assert 200 in allowed_ids
-    assert 300 in allowed_ids
-    assert len(allowed_ids) == 3
+    # Має включати тільки entry points: "100", "200", "300"
+    assert "100" in allowed_ids
+    assert "200" in allowed_ids
+    assert "300" in allowed_ids
 
 
 @pytest.mark.asyncio
@@ -247,8 +272,8 @@ def test_clear_cache(test_config_path):
 async def test_recursive_children_collection(test_config_path):
     """Тест рекурсивного збору дочірніх сторінок."""
     manager = WhitelistManager(test_config_path)
-    
-    # Mock з деревом: 100 → 101 → 102 → 103
+
+    # Mock з деревом: "100" → "101" → "102" → "103"
     mock_client = MagicMock()
     mock_client.get_child_pages = AsyncMock(side_effect=[
         ["101"],  # Дочірні для 100
@@ -258,14 +283,13 @@ async def test_recursive_children_collection(test_config_path):
         [],  # Для 200
         []   # Для 300
     ])
-    
+
     allowed_ids = await manager.get_allowed_ids("TEST", mock_client)
-    
-    # Має включати всю гілку: 100 → 101 → 102 → 103
-    assert 100 in allowed_ids
-    assert 101 in allowed_ids
-    assert 102 in allowed_ids
-    assert 103 in allowed_ids
+    # Має включати всю гілку: "100" → "101" → "102" → "103"
+    assert "100" in allowed_ids
+    assert "101" in allowed_ids
+    assert "102" in allowed_ids
+    assert "103" in allowed_ids
 
 
 @pytest.mark.asyncio
@@ -275,8 +299,8 @@ async def test_deep_nested_children(test_config_path):
     Перевіряє що рекурсія працює на глибину >2 рівні.
     """
     manager = WhitelistManager(test_config_path)
-    
-    # Структура: 100 → 101 → 102 → 103 → 104
+
+    # Структура: "100" → "101" → "102" → "103" → "104"
     # 5 рівнів вкладеності
     mock_client = MagicMock()
     mock_client.get_child_pages = AsyncMock(side_effect=[
@@ -285,14 +309,13 @@ async def test_deep_nested_children(test_config_path):
         ["103"],    # Level 3: 102 → 103
         ["104"],    # Level 4: 103 → 104
         [],         # Level 5: 104 (leaf)
-        [],         # 200
+        [],  # 200
         []          # 300
     ])
-    
+
     allowed_ids = await manager.get_allowed_ids("TEST", mock_client)
-    
     # Має включати всі 5 рівнів
-    expected_ids = {100, 101, 102, 103, 104, 200, 300}
+    expected_ids = {"100", "101", "102", "103", "104", "200", "300"}
     assert allowed_ids == expected_ids
     
     # Перевірка що рекурсія працює

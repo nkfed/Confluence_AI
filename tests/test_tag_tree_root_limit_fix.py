@@ -42,7 +42,7 @@ async def test_tag_tree_root_page_tag_limit():
     service = BulkTaggingService(confluence_client=confluence_client)
     
     # Execute dry-run
-    result = await service.tag_tree(root_page_id, dry_run=True)
+    result = await service.tag_tree(space_key="euheals", root_page_id=root_page_id, dry_run=True)
     
     print(f"\n[TEST] Result:")
     print(f"  Status: {result.get('status', 'N/A')}")
@@ -155,7 +155,7 @@ async def test_tag_tree_root_vs_children_consistency():
     confluence_client = ConfluenceClient()
     service = BulkTaggingService(confluence_client=confluence_client)
     
-    result = await service.tag_tree(root_page_id, dry_run=True)
+    result = await service.tag_tree(space_key="euheals", root_page_id=root_page_id, dry_run=True)
     
     details = result.get('details', [])
     
