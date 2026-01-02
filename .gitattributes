@@ -1,73 +1,31 @@
-###############################################
-# DEFAULT BEHAVIOR
-###############################################
-
-# Автоматично визначати текстові файли та нормалізувати до LF у репозиторії
+# --- Normalize all text files to LF ---
 * text=auto eol=lf
 
+# --- Shell scripts must always use LF ---
+*.sh text eol=lf
 
-###############################################
-# PYTHON FILES
-###############################################
-*.py text eol=lf
-
-
-###############################################
-# MARKDOWN / DOCUMENTATION
-###############################################
-*.md text eol=lf
-*.rst text eol=lf
-
-
-###############################################
-# CONFIG FILES
-###############################################
-*.json text eol=lf
-*.yaml text eol=lf
-*.yml text eol=lf
-*.toml text eol=lf
-*.env text eol=lf
-*.ini text eol=lf
-
-
-###############################################
-# WINDOWS-SPECIFIC FILES (ALLOW CRLF)
-###############################################
+# --- Windows batch files keep CRLF ---
 *.bat text eol=crlf
 *.cmd text eol=crlf
-*.ps1 text eol=crlf
 
+# --- Markdown, JSON, YAML, configs ---
+*.md   text eol=lf
+*.json text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
 
-###############################################
-# BINARY FILES (NO DIFF)
-###############################################
+# --- Python ---
+*.py text eol=lf
+
+# --- GitHub workflows ---
+.github/**/*.yml text eol=lf
+
+# --- Binary files ---
 *.png binary
 *.jpg binary
 *.jpeg binary
 *.gif binary
-*.ico binary
 *.pdf binary
 *.zip binary
 *.exe binary
 *.dll binary
-
-
-###############################################
-# IDE / EDITOR FILES
-###############################################
-# Якщо ти все ж хочеш тримати частину .idea у репо
-*.iml text eol=lf
-
-# Але workspace.xml краще ігнорувати
-.idea/workspace.xml -text
-
-
-###############################################
-# PROJECT-SPECIFIC
-###############################################
-
-# Файли, які генерує твій агент
-.junie/* text eol=lf
-
-# Логи не повинні нормалізуватися
-logs/* -text
