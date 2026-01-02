@@ -1,57 +1,65 @@
-# Python cache
+# Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
-*.pyc
-.Python
+*.egg-info/
+.eggs/
+build/
+dist/
 
 # Virtual environments
-.venv/
-env/
 venv/
-ENV/
-env.bak/
-venv.bak/
-
-# Data
-data/
-
-# Environment variables
-.env
-.env.*
-.env.local
-.env.*.local
-
-# IDE
-.idea/
-.vscode/
-.history/
-*.swp
-*.swo
-*~
-
-# OS-specific
-.DS_Store
-Thumbs.db
-desktop.ini
+.env/
+.env*/
+.venv*/
 
 # Logs
-logs/
 *.log
 *.log.*
+pytest*.log
+pytest_full_log.txt
+*.out
+*.err
+
+# Secrets
+*.env
+.env.local
+.env.*.local
+secrets.json
+token.txt
+apikey.txt
+
+# AI / LLM artifacts
+*.cache
+*.ai_cache
+*.embedding
+*.vectorstore
+
+# VS Code
+.vscode/
+.history/
+*.code-workspace
+
+# OS
+Thumbs.db
+.DS_Store
 
 # Jupyter
 .ipynb_checkpoints/
+*.ipynb
 
-# MyPy / Pytest / Coverage / Ruff
-.mypy_cache/
-.pytest_cache/
-.ruff_cache/
-.coverage
-htmlcov/
+# Node
+node_modules/
 
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
+# Temporary
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*.swo
+
+# Project-specific
+pytest_full_log.txt
+logs/
