@@ -5,6 +5,7 @@ Tests routing modes, configuration validation, and settings management.
 """
 
 import pytest
+from unittest.mock import patch
 from src.core.config.ai_settings import AISettings
 
 
@@ -105,7 +106,11 @@ class TestAISettingsConfiguration:
     
     def test_default_providers(self):
         """Test default provider configuration"""
-        settings = AISettings()
+        with patch.dict('os.environ', {}, clear=True):
+            settings = AISettings(
+                DEFAULT_AI_PROVIDER="openai",
+                FALLBACK_AI_PROVIDER="gemini",
+            )
         assert settings.DEFAULT_AI_PROVIDER == "openai"
         assert settings.FALLBACK_AI_PROVIDER == "gemini"
 

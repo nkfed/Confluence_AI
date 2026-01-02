@@ -719,9 +719,8 @@ class MyAgent(BaseAgent):
 - [Best Practices](https://help.openai.com/en/articles/6654000-best-practices-for-prompt-engineering)
 
 ### Внутрішні документи
-- [Agent Development Guide](./AGENT_DEVELOPMENT.md)
-- [Testing Guide](./TESTING.md)
-- [API Documentation](./API.md)
+- [Testing Guidelines](./TESTING_GUIDELINES.md)
+- [Agent Mode System](../architecture/agent-modes-overview.md)
 
 ### Приклади коду
 - `src/agents/tagging_agent.py` - Повний приклад агента

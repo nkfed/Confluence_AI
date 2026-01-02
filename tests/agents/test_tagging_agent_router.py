@@ -5,7 +5,7 @@ Tests the integration of AI Provider Router with TaggingAgent.
 """
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, ANY
 from src.agents.tagging_agent import TaggingAgent
 from src.clients.openai_client import OpenAIClient
 from src.core.ai.router import AIProviderRouter
@@ -27,13 +27,9 @@ class TestTaggingAgentWithRouter:
             total_tokens=150
         )
         
-        # Mock provider
-        mock_provider = MagicMock()
-        mock_provider.generate = AsyncMock(return_value={"text": "generated text"})
-        
-        # Mock router
+        # Mock router.generate
         mock_router = MagicMock(spec=AIProviderRouter)
-        mock_router.get = MagicMock(return_value=mock_provider)
+        mock_router.generate = AsyncMock(return_value=mock_ai_response)
         
         # Create agent with router
         agent = TaggingAgent(ai_router=mock_router)
@@ -42,10 +38,9 @@ class TestTaggingAgentWithRouter:
         tags = await agent.suggest_tags("This is a technical document about GitHub Copilot")
         
         # Verify router was used
-        assert "doc" in tags
-        assert "tool" in tags
-        mock_router.get.assert_called_once_with(None)  # Default provider
-        mock_provider.generate.assert_called_once()
+        assert tags["doc"] == ["doc-tech"]
+        assert tags["tool"] == ["tool-github-copilot"]
+        mock_router.generate.assert_awaited_once()
     
     @pytest.mark.asyncio
     async def test_tagging_agent_with_specific_provider(self):
@@ -57,11 +52,8 @@ class TestTaggingAgentWithRouter:
             total_tokens=80
         )
         
-        mock_provider = MagicMock()
-        mock_provider.generate = AsyncMock(return_value=mock_ai_response)
-        
         mock_router = MagicMock(spec=AIProviderRouter)
-        mock_router.get = MagicMock(return_value=mock_provider)
+        mock_router.generate = AsyncMock(return_value=mock_ai_response)
         
         # Create agent with specific provider
         agent = TaggingAgent(
@@ -73,7 +65,7 @@ class TestTaggingAgentWithRouter:
         
         assert tags["doc"] == ["doc-business"]
         assert tags["domain"] == ["domain-ehealth-core"]
-        mock_router.get.assert_called_with("gemini")
+        mock_router.generate.assert_awaited_once_with(prompt=ANY, provider="gemini")
     
     @pytest.mark.asyncio
     async def test_tagging_agent_backward_compatibility(self):
@@ -100,11 +92,8 @@ class TestTaggingAgentWithRouter:
             model="gpt-4o-mini"
         )
         
-        mock_provider = MagicMock()
-        mock_provider.generate = AsyncMock(return_value=mock_ai_response)
-        
         mock_router = MagicMock(spec=AIProviderRouter)
-        mock_router.get = MagicMock(return_value=mock_provider)
+        mock_router.generate = AsyncMock(return_value=mock_ai_response)
         
         agent = TaggingAgent(ai_router=mock_router)
         
@@ -115,6 +104,7 @@ class TestTaggingAgentWithRouter:
         assert "domain" in tags
         assert "kb" in tags
         assert "tool" in tags
+        mock_router.generate.assert_awaited_once()
     
     @pytest.mark.asyncio
     async def test_tagging_agent_with_multiple_providers(self):
@@ -133,21 +123,12 @@ class TestTaggingAgentWithRouter:
             model="gemini-2.0-flash-exp"
         )
         
-        # Mock providers
-        mock_openai_provider = MagicMock()
-        mock_openai_provider.generate = AsyncMock(return_value=openai_response)
-        
-        mock_gemini_provider = MagicMock()
-        mock_gemini_provider.generate = AsyncMock(return_value=gemini_response)
-        
-        # Mock router
-        def get_provider(name):
-            if name == "gemini":
-                return mock_gemini_provider
-            return mock_openai_provider
-        
+        # Mock router.generate with provider-sensitive behavior
+        async def generate_side_effect(prompt: str, provider: str | None = None):
+            return gemini_response if provider == "gemini" else openai_response
+
         mock_router = MagicMock(spec=AIProviderRouter)
-        mock_router.get = MagicMock(side_effect=get_provider)
+        mock_router.generate = AsyncMock(side_effect=generate_side_effect)
         
         # Test with OpenAI (default)
         agent_openai = TaggingAgent(ai_router=mock_router)
@@ -158,6 +139,8 @@ class TestTaggingAgentWithRouter:
         agent_gemini = TaggingAgent(ai_router=mock_router, ai_provider="gemini")
         tags_gemini = await agent_gemini.suggest_tags("Text")
         assert tags_gemini["doc"] == ["doc-business"]
+        
+        assert mock_router.generate.await_count == 2
 
 
 class TestTaggingAgentRouterIntegration:

@@ -425,8 +425,8 @@ fi
 
 ### Внутрішні документи
 - [Prompt Engineering Guide](./PROMPT_ENGINEERING.md)
-- [Agent Development Guide](./agent-mode-system.md)
-- [Logging Guide](./logging_guide.md)
+- [Agent Mode Overview](../architecture/agent-modes-overview.md)
+- [Logging Guide](../logging/logging_guide.md)
 
 ---
 

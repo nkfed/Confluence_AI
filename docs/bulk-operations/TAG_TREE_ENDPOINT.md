@@ -362,6 +362,5 @@ async def tag_tree_example():
 
 ## Дивіться також
 
-- [WhitelistManager Documentation](WHITELIST_MANAGER.md)
-- [Tag-Space Endpoint](TAG_SPACE_ENDPOINT.md)
-- [Режимна матриця](AGENT_MODES.md)
+- [Whitelist Mechanism Documentation](../whitelist/WHITELIST_MECHANISM.md)
+- [Agent Mode System](../architecture/agent-modes-overview.md)

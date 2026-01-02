@@ -40,7 +40,7 @@ class TestGeminiClientInitialization:
     
     def test_init_with_google_api_key_env(self):
         """Test initialization using GOOGLE_API_KEY environment variable"""
-        with patch.dict('os.environ', {'GOOGLE_API_KEY': 'google-key-789'}):
+        with patch.dict('os.environ', {'GOOGLE_API_KEY': 'google-key-789'}, clear=True):
             client = GeminiClient()
             assert client.api_key == 'google-key-789'
     

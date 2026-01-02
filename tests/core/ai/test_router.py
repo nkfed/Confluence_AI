@@ -8,6 +8,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from src.core.ai.router import AIProviderRouter
 from src.core.ai.interface import AIResponse
+from src.core.ai.errors import ProviderUnavailableError, FallbackFailedError
 
 
 class TestAIProviderRouterInitialization:
@@ -123,7 +124,7 @@ class TestAIProviderRouterGenerate:
         )
         
         mock_openai = MagicMock()
-        mock_openai.generate = AsyncMock(return_value={"text": "Generated text"})
+        mock_openai.generate = AsyncMock(return_value=mock_response)
         
         router = AIProviderRouter(
             providers={"openai": mock_openai},
@@ -145,7 +146,7 @@ class TestAIProviderRouterGenerate:
         )
         
         mock_gemini = MagicMock()
-        mock_gemini.generate = AsyncMock(return_value=SimpleNamespace(text="Gemini response"))
+        mock_gemini.generate = AsyncMock(return_value=mock_response)
         
         router = AIProviderRouter(
             default_provider="openai",
@@ -226,7 +227,7 @@ class TestAIProviderRouterGenerate:
             auto_register=False
         )
         
-        with pytest.raises(RuntimeError, match="OpenAI failed"):
+        with pytest.raises(ProviderUnavailableError):
             await router.generate("Test prompt")
     
     @pytest.mark.asyncio
@@ -245,7 +246,7 @@ class TestAIProviderRouterGenerate:
             auto_register=False
         )
         
-        with pytest.raises(RuntimeError, match="Both primary .* and fallback .* providers failed"):
+        with pytest.raises(FallbackFailedError):
             await router.generate("Test prompt")
     
     @pytest.mark.asyncio
@@ -270,8 +271,8 @@ class TestAIProviderRouterGenerate:
             auto_register=False
         )
         
-        # Should not retry with same provider
-        with pytest.raises(RuntimeError, match="First call failed"):
+        # Should not retry with same provider; raises ProviderUnavailableError
+        with pytest.raises(ProviderUnavailableError):
             await router.generate("Test prompt")
         
         assert call_count == 1
