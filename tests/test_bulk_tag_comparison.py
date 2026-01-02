@@ -44,7 +44,7 @@ async def test_bulk_tag_pages_dry_run():
     
     print(f"\n[TEST] Bulk tagging {len(page_ids)} pages with dry_run=True")
     
-    result = await service.tag_pages(page_ids, dry_run=True)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=True)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -86,6 +86,11 @@ async def test_bulk_tag_pages_real_update():
     - Returns tag comparison
     - Shows added tags (not to_add)
     """
+    import os
+    
+    # Set PROD mode for real update test
+    os.environ["TAGGING_AGENT_MODE"] = "PROD"
+    
     service = BulkTaggingService()
     
     # Test with 1 whitelisted page
@@ -93,7 +98,7 @@ async def test_bulk_tag_pages_real_update():
     
     print(f"\n[TEST] Bulk tagging {len(page_ids)} pages with dry_run=False")
     
-    result = await service.tag_pages(page_ids, dry_run=False)
+    result = await service.tag_pages(page_ids, space_key="euheals", dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Total: {result.get('total')}")
@@ -122,6 +127,9 @@ async def test_bulk_tag_pages_real_update():
             assert "to_add" not in tags or tags["to_add"] == [], "Should not have 'to_add' in real update"
     
     print(f"\n[TEST] ✅ Bulk real update test passed!")
+    
+    # Reset environment
+    os.environ["TAGGING_AGENT_MODE"] = "SAFE_TEST"
 
 
 if __name__ == "__main__":

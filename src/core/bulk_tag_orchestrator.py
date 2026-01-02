@@ -43,6 +43,7 @@ from src.agents.tagging_agent import TaggingAgent
 from src.agents.prompt_builder import PromptBuilder
 from src.services.page_filter_service import PageFilterService
 from src.core.agent_mode_resolver import AgentModeResolver
+from src.core.whitelist.whitelist_manager import WhitelistManager
 from src.core.logging.logger import get_logger
 from src.utils.tag_structure import limit_tags_per_category
 from src.sections.whitelist import get_default_labels
@@ -64,7 +65,8 @@ class BulkTagOrchestrator:
     def __init__(
         self,
         confluence_client: ConfluenceClient = None,
-        tagging_agent: TaggingAgent = None
+        tagging_agent: TaggingAgent = None,
+        mode: str = None
     ):
         """
         Ініціалізація BulkTagOrchestrator.
@@ -72,18 +74,18 @@ class BulkTagOrchestrator:
         Args:
             confluence_client: Клієнт Confluence (опціонально)
             tagging_agent: Агент тегування (опціонально)
+            mode: Явне встановлення режиму (TEST, SAFE_TEST, PROD) - для тестування
         """
         self.confluence = confluence_client or ConfluenceClient()
         self.tagging_agent = tagging_agent or TaggingAgent()
         
-        # Визначити режим та whitelist
-        self.mode = AgentModeResolver.resolve_mode(self.AGENT_NAME)
-        self.whitelist = AgentModeResolver.resolve_whitelist(self.AGENT_NAME)
+        # Визначити режим (дозволяє явне встановлення для тестів)
+        self.mode = mode or AgentModeResolver.resolve_mode(self.AGENT_NAME)
         
-        # Ініціалізувати фільтр
-        self.filter_service = PageFilterService(whitelist=self.whitelist)
+        # Ініціалізувати фільтр (whitelist буде завантажений у tag_space)
+        self.filter_service = PageFilterService(whitelist=[])
         
-        logger.info(f"BulkTagOrchestrator initialized: mode={self.mode}, whitelist_size={len(self.whitelist)}")
+        logger.info(f"BulkTagOrchestrator initialized: mode={self.mode}, whitelist_size=0 (loaded per space)")
     
     async def tag_space(
         self,
@@ -130,6 +132,29 @@ class BulkTagOrchestrator:
             }
         """
         logger.info(f"Starting bulk tag for space {space_key}, mode={self.mode}")
+        
+        # Завантажити whitelist з конфігурації (єдине джерело)
+        whitelist_manager = WhitelistManager()
+        try:
+            allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
+        except Exception as e:
+            logger.error(f"[WHITELIST] Failed to load whitelist for {space_key}: {e}")
+            return {
+                "total": 0,
+                "processed": 0,
+                "success": 0,
+                "errors": 1,
+                "skipped_count": 0,
+                "dry_run": False,
+                "mode": self.mode,
+                "error": f"Whitelist load failed: {e}",
+                "details": [],
+                "skipped_pages": []
+            }
+        logger.info(
+            f"[WHITELIST] Loaded from whitelist_config.json for space={space_key}: {len(allowed_ids)} entries"
+        )
+        self.filter_service.whitelist = [str(pid) for pid in allowed_ids]
         
         # Визначити dry_run
         dry_run = self._resolve_dry_run(dry_run_override)
@@ -341,7 +366,7 @@ class BulkTagOrchestrator:
             can_modify = AgentModeResolver.can_modify_confluence(
                 mode=self.mode,
                 page_id=page_id,
-                whitelist=self.whitelist
+                whitelist=self.filter_service.whitelist
             )
             
             if not can_modify:

@@ -32,6 +32,30 @@ audit_handler = RotatingFileHandler(
 audit_handler.setFormatter(formatter)
 audit_logger.addHandler(audit_handler)
 
+# --- AI LOGGER ---
+ai_logger = logging.getLogger("ai")
+ai_logger.setLevel(logging.INFO)
+ai_handler = RotatingFileHandler(
+    os.path.join(LOG_DIR, "ai_calls.log"),
+    maxBytes=10_000_000,
+    backupCount=10,
+    encoding="utf-8"
+)
+ai_handler.setFormatter(formatter)
+ai_logger.addHandler(ai_handler)
+
+# --- AI ROUTER LOGGER ---
+ai_router_logger = logging.getLogger("ai_router")
+ai_router_logger.setLevel(logging.INFO)
+ai_router_handler = RotatingFileHandler(
+    os.path.join(LOG_DIR, "ai_router.log"),
+    maxBytes=5_000_000,
+    backupCount=5,
+    encoding="utf-8"
+)
+ai_router_handler.setFormatter(formatter)
+ai_router_logger.addHandler(ai_router_handler)
+
 _configured = False
 
 
@@ -64,6 +88,10 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
         return logging.getLogger("clients")
     if name.startswith("utils.") or name.startswith("src.utils."):
         return logging.getLogger("utils")
+    if name.startswith("ai.") or "core.ai" in name:
+        return logging.getLogger("ai")
+    if name.startswith("ai_router") or "ai_router" in name:
+        return logging.getLogger("ai_router")
     if "policy" in name or "security" in name:
         return logging.getLogger("security")
     if "audit" in name:

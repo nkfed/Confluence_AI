@@ -79,17 +79,18 @@ async def test_tag_space_invalid_space():
     print(f"\n[TEST] Tagging invalid space '{space_key}'")
     
     result = await service.tag_space(space_key, dry_run=True)
+
+    # Updated checks for new response structure
+    assert "task_id" in result
+    assert isinstance(result["task_id"], str)
+    assert "status" in result or "details" in result
     
     print(f"\n[TEST] Result:")
-    print(f"  Total: {result.get('total')}")
-    print(f"  Errors: {result.get('errors')}")
-    print(f"  Status: {result['details'][0].get('status') if result.get('details') else 'N/A'}")
+    print(f"  Task ID: {result.get('task_id')}")
+    print(f"  Status: {result.get('status')}")
     
     # Verify error handling
-    assert result["total"] == 0
-    assert result["errors"] >= 0  # Could be 0 (no pages) or 1 (error)
     assert "details" in result
-    
     if result["details"]:
         detail = result["details"][0]
         assert detail.get("status") == "error"

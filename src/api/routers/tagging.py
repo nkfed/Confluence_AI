@@ -53,4 +53,9 @@ async def auto_tag_page(
         }
     """
     service = TaggingService()
-    return await service.auto_tag_page(page_id, space_key=space_key, dry_run=dry_run)
+    result = await service.auto_tag_page(page_id, space_key=space_key, dry_run=dry_run)
+
+    # Add root_page_id to the response
+    result["root_page_id"] = page_id
+
+    return result

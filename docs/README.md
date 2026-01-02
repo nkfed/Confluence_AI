@@ -25,14 +25,14 @@
 
 ---
 
-### 2. [Agent Mode System](agent-mode-system.md)
+### 2. [Agent Mode System](architecture/agent-modes-overview.md)
 **Система режимів роботи агентів (TEST, SAFE_TEST, PROD)**
 
 Що включено:
-- Centralized mode resolution
-- Режимна матриця доступів
-- Whitelist management
-- Security та audit logging
+- 📖 [Agent Modes Overview](architecture/agent-modes-overview.md) — Огляд трьох режимів
+- 🔀 [Agent Mode Router](architecture/agent-mode-router.md) — Маршрутизація та інтеграція
+- 🔄 [Agent Mode Lifecycle](architecture/agent-mode-lifecycle.md) — Цикл життя операцій
+- 🚨 [Agent Mode Error Handling](architecture/agent-mode-errors.md) — Обробка помилок
 
 **Для кого:** Розробники агентів, DevOps
 
@@ -95,12 +95,29 @@
 ```
 docs/
 ├── README.md                      # Цей файл (індекс)
-├── PROMPT_ENGINEERING.md          # ⭐ Промпти та AI
-├── TESTING_GUIDELINES.md          # ⭐ Правила тестування
-├── agent-mode-system.md           # Режими агентів
-├── logging_guide.md               # Логування
-├── TAG_TREE_REFACTORING.md        # Tag tree система
-└── VSCODE_OPTIMIZATION.md         # VS Code setup
+├── INDEX.md                       # 📚 Повна карта документації
+│
+├── architecture/                  # Архітектура системи
+│   ├── agent-modes-overview.md
+│   ├── agent-mode-router.md
+│   ├── agent-mode-lifecycle.md
+│   ├── agent-mode-errors.md
+│   └── ...інші файли
+│
+├── bulk-operations/               # Операції з тегами
+│   ├── TAG_PAGES_ENDPOINT.md
+│   ├── TAG_TREE_ENDPOINT.md
+│   └── ...інші файли
+│
+├── guides/                        # Гайди та best practices
+│   ├── PROMPT_ENGINEERING.md
+│   ├── TESTING_GUIDELINES.md
+│   └── VSCODE_OPTIMIZATION.md
+│
+├── whitelist/                     # Whitelist механізм
+├── logging/                       # Логування і трекінг
+├── spaces/                        # Spaces операції
+└── archive/                       # Старі та deprecated файли
 ```
 
 ---
@@ -108,13 +125,13 @@ docs/
 ## 🚀 Quick Start
 
 ### Я хочу створити новий промпт
-👉 Читай [Prompt Engineering Guide](PROMPT_ENGINEERING.md) → Розділ "Створення нових промптів"
+👉 Читай [Prompt Engineering Guide](guides/PROMPT_ENGINEERING.md) → Розділ "Створення нових промптів"
 
 ### Я хочу додати новий агент
-👉 Читай [Agent Mode System](agent-mode-system.md) → BaseAgent usage
+👉 Читай [Agent Mode System](architecture/agent-modes-overview.md) → Розділ архітектури
 
 ### Я хочу налаштувати логування
-👉 Читай [Logging Guide](logging_guide.md) → Configuration
+👉 Читай [Logging Guide](logging/logging_guide.md) → Configuration
 
 ### Я хочу створити тест
 👉 Читай [Testing Guidelines](TESTING_GUIDELINES.md) → Розташування та Best Practices
@@ -128,9 +145,10 @@ docs/
 
 ### Для нових розробників:
 1. README.md (корінь проєкту)
-2. [Agent Mode System](agent-mode-system.md)
-3. [Logging Guide](logging_guide.md)
-4. [Prompt Engineering Guide](PROMPT_ENGINEERING.md)
+2. [INDEX.md](INDEX.md) — Повна карта документації
+3. [Agent Mode System](architecture/agent-modes-overview.md)
+4. [Logging Guide](logging/logging_guide.md)
+5. [Prompt Engineering Guide](guides/PROMPT_ENGINEERING.md)
 
 ### Для досвідчених розробників:
 - Перегляньте зміст кожного документа

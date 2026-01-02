@@ -91,7 +91,6 @@ if not filtered_ids:
 }
 ```
 
-**Документація:** [TAG_PAGES_ENDPOINT.md](TAG_PAGES_ENDPOINT.md)
 
 ---
 
@@ -152,8 +151,6 @@ if not filtered_ids:
   "details": [...]
 }
 ```
-
-**Документація:** [TAG_SPACE_ENDPOINT.md](TAG_SPACE_ENDPOINT.md)
 
 ---
 
@@ -349,7 +346,7 @@ pytest tests/test_tag_pages_modes.py::test_tag_pages_no_whitelist_entries_return
 1. **Видалено дублікат `/bulk/tag-space`** з `bulk.py` (залишився в `bulk_tag_space.py`)
 2. **`space_key` тепер обов'язковий** в `tag_tree()`
 3. **Уніфіковано dry_run логіку** в `tag_space()` 
-4. **Видалено deprecated модель** `BulkTagRequest`
+4. **Видалено deprecated модель** `BulkTagRequest` (див. [архів](../archive/BULK_ENDPOINTS_AUDIT_REPORT_DEPRECATED.md))
 5. **Переміщено в deprecated:** `bulk_tagging_router.py`
 6. **Додано whitelist і режими** в `auto-tag`
 
@@ -365,14 +362,13 @@ pytest tests/test_tag_pages_modes.py::test_tag_pages_no_whitelist_entries_return
 ## 📞 Підтримка
 
 **Документація:**
-- [TAG_PAGES_ENDPOINT.md](TAG_PAGES_ENDPOINT.md)
-- [TAG_TREE_ENDPOINT.md](TAG_TREE_ENDPOINT.md)
-- [TAG_SPACE_ENDPOINT.md](TAG_SPACE_ENDPOINT.md)
-- [AUTO_TAG_ENDPOINT.md](AUTO_TAG_ENDPOINT.md)
-- [WHITELIST_MECHANISM.md](WHITELIST_MECHANISM.md)
+- [TAG_PAGES_ENDPOINT.md](../bulk-operations/TAG_PAGES_ENDPOINT.md)
+- [TAG_TREE_ENDPOINT.md](../bulk-operations/TAG_TREE_ENDPOINT.md)
 
-**Аудит:**
-- [BULK_ENDPOINTS_AUDIT_REPORT.md](BULK_ENDPOINTS_AUDIT_REPORT.md)
+- [WHITELIST_MECHANISM.md](../whitelist/WHITELIST_MECHANISM.md)
+
+**Аудит (Deprecated):**
+- [BULK_ENDPOINTS_AUDIT_REPORT.md](../archive/BULK_ENDPOINTS_AUDIT_REPORT_DEPRECATED.md)
 
 ---
 

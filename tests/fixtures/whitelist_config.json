@@ -1,0 +1,42 @@
+{
+  "spaces": [
+    {
+      "space_key": "euheals",
+      "description": "Test space for bulk/tag-tree/tag-pages",
+      "pages": [
+        { "id": "19493847570", "name": "Euheals Root Page", "root": true },
+        { "id": "111", "name": "Test Root Page" },
+        { "id": "222", "name": "Test Child Page A" },
+        { "id": "333", "name": "Test Child Page B" },
+        { "id": "123", "name": "Tag Pages Test 123" },
+        { "id": "456", "name": "Tag Pages Test 456" },
+        { "id": "789", "name": "Tag Pages Test 789" },
+        { "id": "19713687690", "name": "Main Test Page" },
+        { "id": "100", "name": "Whitelist Manager Test Root" },
+        { "id": "101", "name": "WM Child 101" },
+        { "id": "102", "name": "WM Child 102" },
+        { "id": "111", "name": "WM Grandchild 111" },
+        { "id": "112", "name": "WM Grandchild 112" },
+        { "id": "121", "name": "WM Grandchild 121" },
+        { "id": "200", "name": "WM Entry Point 200" },
+        { "id": "300", "name": "WM Entry Point 300" }
+      ]
+    },
+    {
+      "space_key": "nkfedba",
+      "description": "Legacy test space with non-whitelist pages",
+      "pages": [
+        { "id": "19699862097", "name": "Legacy Whitelisted Page", "root": true },
+        { "id": "19699862098", "name": "Legacy Child Page" },
+        { "id": "19700089019", "name": "Non-Whitelist Root Page" }
+      ]
+    },
+    {
+      "space_key": "TEST",
+      "description": "Test space for bulk tagging tests",
+      "pages": [
+        { "id": "123", "name": "Test Page 1 (whitelisted)" }
+      ]
+    }
+  ]
+}

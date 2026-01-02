@@ -68,16 +68,41 @@ class BaseAgent(ABC):
         Returns:
             True if page access/modification is allowed
         """
-        if self.mode == AgentMode.PROD:
-            return True
+        # Debug logging for access check
+        logger.info(
+            f"[ACCESS CHECK] agent={self.agent_name} mode={self.mode} "
+            f"page_id={page_id} (type={type(page_id).__name__}) "
+            f"whitelist={self.allowed_test_pages} (len={len(self.allowed_test_pages)})"
+        )
         
-        if self.mode == AgentMode.SAFE_TEST:
-            return page_id in self.allowed_test_pages
-        
+        # Use centralized access logic from AgentModeResolver
+        # For read operations (TEST mode), we allow whitelist pages
         if self.mode == AgentMode.TEST:
-            return page_id in self.allowed_test_pages
+            # In TEST mode, allow read-only access to whitelist pages
+            page_id_str = str(page_id)
+            is_allowed = page_id_str in self.allowed_test_pages
+            
+            if is_allowed:
+                logger.info(f"[ACCESS GRANTED] TEST mode - Page {page_id} in whitelist (read-only)")
+            else:
+                logger.warning(
+                    f"[ACCESS DENIED] TEST mode - Page {page_id} NOT in whitelist. "
+                    f"Whitelist={self.allowed_test_pages}"
+                )
+            return is_allowed
         
-        return False
+        # For SAFE_TEST and PROD, use standard modification check
+        is_allowed = AgentModeResolver.can_modify_confluence(
+            self.mode, page_id, self.allowed_test_pages
+        )
+        
+        if not is_allowed:
+            logger.warning(
+                f"[ACCESS DENIED] Mode={self.mode}, Page={page_id}, "
+                f"Whitelist={self.allowed_test_pages}"
+            )
+        
+        return is_allowed
 
     def enforce_page_policy(self, page_id: str, allowed_pages: list = None):
         """

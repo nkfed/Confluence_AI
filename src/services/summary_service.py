@@ -1,5 +1,6 @@
 from typing import Dict, Any
 from src.agents.summary_agent import SummaryAgent
+from src.core.ai.router import router
 from src.core.logging.logger import get_logger
 from src.core.logging.timing import log_timing
 
@@ -15,7 +16,8 @@ class SummaryService:
 
     def __init__(self) -> None:
         """Ініціалізує сервіс та створює екземпляр SummaryAgent."""
-        self.agent = SummaryAgent()
+        # Use global router for AI calls
+        self.agent = SummaryAgent(ai_router=router)
 
     @log_timing
     async def summarize_page(self, page_id: str) -> Dict[str, Any]:

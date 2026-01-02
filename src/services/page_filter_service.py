@@ -118,16 +118,23 @@ class PageFilterService:
             True якщо сторінка порожня
         """
         try:
-            content = page.get("body", {}).get("storage", {}).get("value", "")
-            
+            body = page.get("body")
+
+            # Якщо body відсутній — вважаємо, що сторінка не порожня (може бути неповна відповідь API)
+            if not body or "storage" not in body:
+                return False
+
+            content = body.get("storage", {}).get("value", "") or ""
+
             # Видалити HTML теги для підрахунку
             plain_text = re.sub(r"<[^>]+>", "", content).strip()
-            
-            is_empt = len(plain_text) < 50
-            
+
+            # Вважаємо сторінку пустою лише якщо реального тексту < 5 символів
+            is_empt = len(plain_text) < 5
+
             if is_empt:
                 logger.debug(f"Page {page.get('id')} '{page.get('title')}' is empty ({len(plain_text)} chars)")
-            
+
             return is_empt
         except Exception as e:
             logger.warning(f"Error checking if page {page.get('id')} is empty: {e}")
@@ -170,7 +177,8 @@ class PageFilterService:
         Returns:
             True якщо сторінка у whitelist
         """
-        is_allowed = page_id in self.whitelist
+        page_id_str = str(page_id)
+        is_allowed = page_id_str in {str(pid) for pid in self.whitelist}
         
         if not is_allowed:
             logger.debug(f"Page {page_id} is NOT in SAFE_TEST whitelist")
@@ -188,45 +196,49 @@ class PageFilterService:
         exclude_by_title_regex: Optional[str] = None
     ) -> tuple[bool, Optional[str]]:
         """
-        Універсальний метод для перевірки, чи повинна сторінка бути виключена.
-        
-        Args:
-            page: Об'єкт сторінки Confluence
-            mode: Режим роботи агента (TEST, SAFE_TEST, PROD)
-            exclude_archived: Виключити архівовані сторінки
-            exclude_index_pages: Виключити індексні сторінки
-            exclude_templates: Виключити шаблони
-            exclude_empty_pages: Виключити порожні сторінки
-            exclude_by_title_regex: Регулярний вираз для виключення за назвою
-            
-        Returns:
-            (should_exclude, reason): True якщо сторінка повинна бути виключена + причина
+        Визначає, чи повинна сторінка бути виключена на основі режиму та критеріїв.
         """
         page_id = page.get("id", "unknown")
-        
-        # 1. Перевірка режиму SAFE_TEST whitelist
-        if mode == "SAFE_TEST" and not self.is_allowed_in_safe_test(page_id):
-            return True, f"Not in SAFE_TEST whitelist"
-        
-        # 2. Архівовані сторінки
+
+        # ---------------------------------------------------------
+        # SAFE_TEST whitelist has absolute priority
+        # ---------------------------------------------------------
+        if mode == "SAFE_TEST":
+            # If page IS in whitelist → always allowed (bypass all filters)
+            if self.is_allowed_in_safe_test(page_id):
+                return False, "allowed"
+            
+            # If page NOT in whitelist → always excluded
+            return True, "whitelist"
+
+        # Check archived pages
         if exclude_archived and self.is_archived(page):
             return True, "Page is archived"
-        
-        # 3. Індексні сторінки
+
+        # Check index pages
         if exclude_index_pages and self.is_index_page(page):
-            return True, "Page is an index"
-        
-        # 4. Шаблони
+            return True, "Page is an index page"
+
+        # Check templates
         if exclude_templates and self.is_template(page):
             return True, "Page is a template"
-        
-        # 5. Порожні сторінки
+
+        # Check title regex
+        if exclude_by_title_regex and self.matches_title_regex(page, exclude_by_title_regex):
+            return True, "Page title matches exclusion regex"
+
+        # Check empty pages (last filter)
         if exclude_empty_pages and self.is_empty(page):
             return True, "Page is empty"
-        
-        # 6. Regex фільтр
-        if exclude_by_title_regex and self.matches_title_regex(page, exclude_by_title_regex):
-            return True, f"Title matches exclusion regex"
-        
-        # Сторінка не виключена
-        return False, None
+
+        # Check mode-specific logic
+        if mode == "TEST":
+            if not self.is_allowed_in_safe_test(page_id):
+                return True, "not in whitelist"
+            return False, "allowed"
+
+        elif mode == "PROD":
+            # If no filters matched in PROD → allow, reason=None
+            return False, None
+
+        return False, "allowed"

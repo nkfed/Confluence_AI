@@ -62,6 +62,7 @@ class Settings(BaseSettings):
 
     # Note: Old whitelist variables (ALLOWED_TAGGING_PAGES, SUMMARY_AGENT_TEST_PAGE, etc.)
     # have been removed. Use whitelist_config.json with WhitelistManager instead.
+    ALLOWED_TAGGING_PAGES: str = _env("ALLOWED_TAGGING_PAGES", "")
 
     class Config:
         env_file = ".env"

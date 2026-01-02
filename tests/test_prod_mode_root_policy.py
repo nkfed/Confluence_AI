@@ -40,7 +40,7 @@ async def test_tag_tree_prod_mode_non_whitelist_root():
     service = BulkTaggingService(confluence_client=confluence_client)
     
     # Execute real update in PROD mode
-    result = await service.tag_tree(non_whitelist_root, dry_run=False)
+    result = await service.tag_tree(space_key="euheals", root_page_id=non_whitelist_root, dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Status: {result.get('status', 'N/A')}")
@@ -97,7 +97,7 @@ async def test_tag_tree_safe_test_blocks_non_whitelist_root():
     service = BulkTaggingService(confluence_client=confluence_client)
     
     # Execute - should be blocked
-    result = await service.tag_tree(non_whitelist_root, dry_run=False)
+    result = await service.tag_tree(space_key="euheals", root_page_id=non_whitelist_root, dry_run=False)
     
     print(f"\n[TEST] Result:")
     print(f"  Status: {result.get('status')}")
@@ -144,7 +144,7 @@ async def test_tag_tree_test_mode_blocks_non_whitelist_root():
     service = BulkTaggingService(confluence_client=confluence_client)
     
     # Execute - should be blocked
-    result = await service.tag_tree(non_whitelist_root, dry_run=True)
+    result = await service.tag_tree(space_key="euheals", root_page_id=non_whitelist_root, dry_run=True)
     
     print(f"\n[TEST] Result:")
     print(f"  Status: {result.get('status')}")

@@ -54,6 +54,53 @@ async def bulk_tag_pages(request: TagPagesRequest):
 # in src/api/routers/bulk_tag_space.py which provides additional filtering options
 
 
+@router.get("/read-tags/{space_key}")
+async def read_tags(
+    space_key: str,
+    root_id: Optional[str] = Query(
+        default=None,
+        description="Optional root page ID to read only descendants"
+    ),
+    tag_substrings: Optional[str] = Query(
+        default=None,
+        description="Optional comma-separated list of substrings to filter tags (e.g., 'doc,domain,kb')"
+    )
+):
+    """
+    Read current tags on pages in a space or subtree.
+    
+    Allows filtering by tag substrings (any tag containing one of the provided substrings).
+    
+    Args:
+        space_key: Confluence space key
+        root_id: Optional root page ID to read only descendants
+        tag_substrings: Optional comma-separated list of substrings to filter tags
+                       (e.g., 'doc,domain,kb' will match tags containing these)
+        
+    Returns:
+        {
+            "total": int,
+            "processed": int,
+            "no_tags": int,
+            "errors": int,
+            "details": [
+                {
+                    "page_id": str,
+                    "title": str,
+                    "existing_tags": List[str]
+                }
+            ]
+        }
+    """
+    service = BulkTaggingService()
+    result = await service.read_tags(
+        space_key=space_key,
+        root_id=root_id,
+        tag_substrings=tag_substrings
+    )
+    return result
+
+
 @router.post("/tag-tree/{space_key}/{root_page_id}")
 async def bulk_tag_tree(
     space_key: str,

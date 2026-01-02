@@ -1,8 +1,10 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from .base_agent import BaseAgent
 from .prompt_builder import PromptBuilder
 from src.clients.confluence_client import ConfluenceClient
 from src.clients.openai_client import OpenAIClient
+from src.core.ai.router import AIProviderRouter
+from src.core.ai.logging_utils import log_ai_call
 from src.utils.html_to_text import html_to_text
 from src.utils.token_counter import estimate_tokens_count
 from src.core.logging.logger import get_logger, audit_logger
@@ -20,10 +22,28 @@ MIN_CONTENT_THRESHOLD = 200  # characters
 class SummaryAgent(BaseAgent):
     """Агент, який формує summary для сторінок Confluence."""
 
-    def __init__(self, confluence_client: ConfluenceClient = None, openai_client: OpenAIClient = None):
+    def __init__(
+        self,
+        confluence_client: ConfluenceClient = None,
+        openai_client: OpenAIClient = None,
+        ai_router: Optional[AIProviderRouter] = None,
+        ai_provider: Optional[str] = None
+    ):
         super().__init__(agent_name="SUMMARY_AGENT")
         self.confluence = confluence_client or ConfluenceClient()
-        self.ai = openai_client or OpenAIClient()
+        
+        # Support both old (openai_client) and new (ai_router) initialization
+        if ai_router is not None:
+            self._ai_router = ai_router
+            self._ai_provider = ai_provider
+            self.ai = None  # Mark as using router
+            logger.info(f"SummaryAgent using AI Router with provider: {ai_provider or 'default'}")
+        else:
+            # Backward compatibility: use direct OpenAI client
+            self.ai = openai_client or OpenAIClient()
+            self._ai_router = None
+            self._ai_provider = None
+            logger.info("SummaryAgent using direct OpenAI client (legacy mode)")
         
         # Debug logging for mode verification
         print(f"DEBUG: SummaryAgent initialized with mode={self.mode}")
@@ -48,12 +68,27 @@ class SummaryAgent(BaseAgent):
         approx_tokens = estimate_tokens_count(text)
         logger.info(f"Step 3.1: Estimated tokens = {approx_tokens}")
 
-        logger.info("Step 4: Building prompt for OpenAI")
+        logger.info("Step 4: Building prompt for AI")
         prompt_template = PromptLoader.load("summary", mode=self.mode)
         prompt = prompt_template.format(TEXT=text[:5000])
 
-        logger.info("Step 5: Calling OpenAI")
-        summary = await self.ai.generate(prompt)
+        logger.info("Step 5: Calling AI provider")
+        if self._ai_router is not None:
+            # Use router.generate() which includes log_ai_call() and router logging
+            ai_response = await self._ai_router.generate(
+                prompt=prompt,
+                provider=self._ai_provider
+            )
+            text = ai_response.text
+            if not isinstance(text, str):
+                logger.warning(f"[SummaryAgent] AI returned non-string text={type(text)}; coercing to str")
+                text = str(text)
+            summary = text
+            logger.info(f"Step 5.1: AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
+        else:
+            # Legacy: direct OpenAI call
+            summary = await self.ai.generate(prompt)
+            logger.info("Step 5.1: OpenAI response received (legacy mode)")
 
         logger.info("Step 6: Summary generated successfully")
         return summary
@@ -93,18 +128,16 @@ class SummaryAgent(BaseAgent):
             f"action=update_page_with_summary page_id={page_id} mode={self.mode} started"
         )
 
-        self.enforce_page_policy(page_id)
-
-        result = await self.process_page(page_id)
-
-        summary_html = (
-            "<h2>AI Summary</h2>"
-            f"<p>{result['summary'].replace('\n', '<br>')}</p>"
-        )
-
-        # Centralized dry-run logic based on mode
+        # In TEST mode, always do dry-run without enforcement
         if self.is_dry_run():
-            # TEST mode: dry-run, no Confluence changes
+            result = await self.process_page(page_id)
+
+            summary_text = result['summary'].replace('\n', '<br>')
+            summary_html = (
+                "<h2>AI Summary</h2>"
+                f"<p>{summary_text}</p>"
+            )
+
             logger.info(f"[DRY-RUN] TEST mode - summary NOT written to Confluence")
             logger.info(f"[DRY-RUN] Would append summary to page {page_id}")
             logger.debug(f"[DRY-RUN] Summary HTML length: {len(summary_html)} chars")
@@ -121,6 +154,17 @@ class SummaryAgent(BaseAgent):
                 "summary_tokens_estimate": result["summary_tokens_estimate"],
                 "message": "TEST mode - summary NOT written to Confluence"
             }
+
+        # For non-TEST modes, enforce policy before modification
+        self.enforce_page_policy(page_id)
+
+        result = await self.process_page(page_id)
+
+        summary_text = result['summary'].replace('\n', '<br>')
+        summary_html = (
+            "<h2>AI Summary</h2>"
+            f"<p>{summary_text}</p>"
+        )
 
         # SAFE_TEST or PROD mode - actually update Confluence
         logger.info(f"[{self.mode}] Appending summary to page {page_id}")
@@ -217,10 +261,27 @@ class SummaryAgent(BaseAgent):
         # Build prompt using PromptBuilder
         prompt = PromptBuilder.build_tag_tree_prompt(content, allowed_labels, dry_run)
         
-        # Call AI
-        logger.info("Calling OpenAI for tag suggestions")
-        ai_response = await self.ai.generate(prompt)
-        logger.debug(f"AI response: {ai_response[:500]}")
+        # Call AI via router (preferred) or legacy client
+        logger.info(
+            f"[TagTree] Calling AI for tag suggestions (router={self._ai_router is not None}, provider={self._ai_provider})"
+        )
+        if self._ai_router is not None:
+            # Use router.generate() which includes log_ai_call() and router logging
+            logger.info(
+                f"[TagTree] Using router.generate() for tag-tree", 
+                extra={"provider": self._ai_provider or "default"}
+            )
+            ai_response_obj = await self._ai_router.generate(
+                prompt=prompt,
+                provider=self._ai_provider
+            )
+            ai_response = ai_response_obj.text
+            logger.debug(f"AI response: {ai_response[:500]}")
+        else:
+            logger.info("[TagTree] Using legacy OpenAI client for tag suggestions")
+            ai_response_obj = await self.ai.generate(prompt)
+            ai_response = ai_response_obj.text if hasattr(ai_response_obj, "text") else ai_response_obj
+            logger.debug(f"AI response: {str(ai_response)[:500]}")
         
         # Parse AI response (expecting JSON with tags by category)
         ai_tags_dict = self._parse_tags_dict_from_response(ai_response)

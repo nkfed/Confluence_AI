@@ -9,26 +9,25 @@
 - Помилку 403 якщо всі page_ids поза whitelist
 """
 
+import os
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException
 from src.services.bulk_tagging_service import BulkTaggingService
-from settings import settings
 
 
 @pytest.fixture
 def mock_confluence_client():
     """Mock Confluence client."""
     client = MagicMock()
-    
-    # Mock get_page
+
     async def mock_get_page(page_id):
         return {
             "id": str(page_id),
             "title": f"Test Page {page_id}",
-            "body": {"storage": {"value": f"<p>Content for page {page_id}</p>" * 50}}
+            "body": {"storage": {"value": f"<p>Content for page {page_id}</p>" * 50}},
         }
-    
+
     client.get_page = AsyncMock(side_effect=mock_get_page)
     client.get_labels = AsyncMock(return_value=["existing-tag"])
     client.update_labels = AsyncMock(return_value={"added": ["new-tag"]})
@@ -67,7 +66,6 @@ def mock_tagging_agent():
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "TEST"})
 async def test_tag_pages_test_mode_always_dry_run(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -76,12 +74,14 @@ async def test_tag_pages_test_mode_always_dry_run(
     """
     TEST режим: завжди dry_run=True, навіть якщо передано dry_run=False.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         # Налаштування мока агента
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -104,7 +104,6 @@ async def test_tag_pages_test_mode_always_dry_run(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "SAFE_TEST"})
 async def test_tag_pages_safe_test_mode_respects_dry_run_true(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -113,11 +112,13 @@ async def test_tag_pages_safe_test_mode_respects_dry_run_true(
     """
     SAFE_TEST режим: dry_run=True → тільки симуляція.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "SAFE_TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "SAFE_TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -137,7 +138,6 @@ async def test_tag_pages_safe_test_mode_respects_dry_run_true(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "SAFE_TEST"})
 async def test_tag_pages_safe_test_mode_respects_dry_run_false(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -146,11 +146,13 @@ async def test_tag_pages_safe_test_mode_respects_dry_run_false(
     """
     SAFE_TEST режим: dry_run=False → реальні зміни на whitelist сторінках.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "SAFE_TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "SAFE_TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -170,7 +172,6 @@ async def test_tag_pages_safe_test_mode_respects_dry_run_false(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "PROD"})
 async def test_tag_pages_prod_mode_respects_dry_run_true(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -179,11 +180,13 @@ async def test_tag_pages_prod_mode_respects_dry_run_true(
     """
     PROD режим: dry_run=True → тільки симуляція.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "PROD"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "PROD"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -203,7 +206,6 @@ async def test_tag_pages_prod_mode_respects_dry_run_true(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "PROD"})
 async def test_tag_pages_prod_mode_respects_dry_run_false(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -212,11 +214,13 @@ async def test_tag_pages_prod_mode_respects_dry_run_false(
     """
     PROD режим: dry_run=False → реальні зміни.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "PROD"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "PROD"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -236,7 +240,6 @@ async def test_tag_pages_prod_mode_respects_dry_run_false(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "SAFE_TEST"})
 async def test_tag_pages_whitelist_filters_pages(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -247,11 +250,13 @@ async def test_tag_pages_whitelist_filters_pages(
     Дозволені: 123, 456, 789
     Запитані: 123, 999 (999 поза whitelist)
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "SAFE_TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "SAFE_TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -271,7 +276,6 @@ async def test_tag_pages_whitelist_filters_pages(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "SAFE_TEST"})
 async def test_tag_pages_all_pages_outside_whitelist_returns_403(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -280,11 +284,13 @@ async def test_tag_pages_all_pages_outside_whitelist_returns_403(
     """
     Якщо всі page_ids поза whitelist → HTTPException 403.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "SAFE_TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "SAFE_TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -302,23 +308,21 @@ async def test_tag_pages_all_pages_outside_whitelist_returns_403(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "SAFE_TEST"})
 async def test_tag_pages_no_whitelist_entries_returns_403(
     mock_confluence_client,
     mock_tagging_agent
 ):
-    """
-    Якщо whitelist порожній → HTTPException 403.
-    """
-    # Mock WhitelistManager що повертає порожній набір
+    
     empty_whitelist_manager = MagicMock()
     empty_whitelist_manager.get_allowed_ids = AsyncMock(return_value=set())
     
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=empty_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "SAFE_TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=empty_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "SAFE_TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)
@@ -335,7 +339,6 @@ async def test_tag_pages_no_whitelist_entries_returns_403(
 
 
 @pytest.mark.asyncio
-@patch.dict("os.environ", {"TAGGING_AGENT_MODE": "TEST"})
 async def test_tag_pages_returns_unified_response_structure(
     mock_confluence_client,
     mock_whitelist_manager,
@@ -344,11 +347,13 @@ async def test_tag_pages_returns_unified_response_structure(
     """
     Перевірка структури відповіді.
     """
-    with patch("src.services.bulk_tagging_service.WhitelistManager", return_value=mock_whitelist_manager), \
+    with patch.dict(os.environ, {"TAGGING_AGENT_MODE": "TEST"}), \
+         patch("src.core.whitelist.whitelist_manager.WhitelistManager", return_value=mock_whitelist_manager), \
          patch("src.agents.tagging_agent.TaggingAgent") as mock_agent_class:
         
         mock_agent_instance = MagicMock()
         mock_agent_instance.suggest_tags = AsyncMock(side_effect=mock_tagging_agent)
+        mock_agent_instance.mode = "TEST"
         mock_agent_class.return_value = mock_agent_instance
         
         service = BulkTaggingService(confluence_client=mock_confluence_client)

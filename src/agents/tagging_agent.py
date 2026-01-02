@@ -1,8 +1,11 @@
 import re
 import json
+from typing import Optional
 from src.agents.base_agent import BaseAgent
 from src.utils.prompt_loader import PromptLoader
 from src.clients.openai_client import OpenAIClient
+from src.core.ai.router import AIProviderRouter
+from src.core.ai.logging_utils import log_ai_call
 from src.core.logging.logger import get_logger
 from src.utils.tag_structure import limit_tags_per_category
 from src.config.tagging_settings import MAX_TAGS_PER_CATEGORY
@@ -22,9 +25,26 @@ def extract_json(s: str):
 
 
 class TaggingAgent(BaseAgent):
-    def __init__(self, openai_client: OpenAIClient = None):
+    def __init__(
+        self,
+        openai_client: OpenAIClient = None,
+        ai_router: Optional[AIProviderRouter] = None,
+        ai_provider: Optional[str] = None
+    ):
         super().__init__(agent_name="TAGGING_AGENT")
-        self.ai = openai_client or OpenAIClient()
+        
+        # Support both old (openai_client) and new (ai_router) initialization
+        if ai_router is not None:
+            self._ai_router = ai_router
+            self._ai_provider = ai_provider
+            self.ai = None  # Mark as using router
+            logger.info(f"TaggingAgent using AI Router with provider: {ai_provider or 'default'}")
+        else:
+            # Backward compatibility: use direct OpenAI client
+            self.ai = openai_client or OpenAIClient()
+            self._ai_router = None
+            self._ai_provider = None
+            logger.info("TaggingAgent using direct OpenAI client (legacy mode)")
 
     async def suggest_tags(self, text: str) -> dict:
         prompt = f"""
@@ -103,7 +123,24 @@ tool-теги:
 
         logger.debug(f"Tagging prompt length: {len(prompt)}")
 
-        raw = await self.ai.generate(prompt)
+        # Use router if available with unified logging
+        if self._ai_router is not None:
+            logger.info(f"[TaggingAgent] Using AI router (provider={self._ai_provider or 'default'})")
+            # Use router.generate() which includes log_ai_call() and router logging
+            ai_response = await self._ai_router.generate(
+                prompt=prompt,
+                provider=self._ai_provider
+            )
+            raw = ai_response.text
+            if not isinstance(raw, str):
+                logger.warning(f"[TaggingAgent] AI returned non-string text={type(raw)}; coercing to str")
+                raw = str(raw)
+            logger.debug(f"[TaggingAgent] AI response received (provider={ai_response.provider}, tokens={ai_response.total_tokens})")
+        else:
+            # Legacy: direct OpenAI call
+            raw = await self.ai.generate(prompt)
+            logger.debug(f"[TaggingAgent] OpenAI response received (legacy mode)")
+        
         logger.debug(f"[TaggingAgent] Raw model response: {raw}")
 
         tags = self._parse_response(raw)
