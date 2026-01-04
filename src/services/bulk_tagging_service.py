@@ -1,11 +1,13 @@
 import asyncio
 import time
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from uuid import uuid4
 from datetime import datetime
 from src.services.tagging_service import TaggingService, flatten_tags
+from src.services.tagging_context import prepare_ai_context
 from src.clients.confluence_client import ConfluenceClient
 from src.core.ai.router import router
+from src.core.ai.optimization_patch_v2 import get_optimization_patch_v2
 from src.core.logging.logger import get_logger
 from settings import settings
 from fastapi import HTTPException
@@ -46,7 +48,7 @@ class BulkTaggingService:
         logger.info(f"[BulkTaggingService] Created task {task_id}")
         return task_id
 
-    async def tag_pages(self, page_ids: list[str], space_key: str, dry_run: bool = None, task_id: str = None) -> dict:
+    async def tag_pages(self, page_ids: list[str], space_key: str, dry_run: bool = None, task_id: str = None, skip_whitelist_filter: bool = False) -> dict:
         """
         Bulk tag multiple pages with unified whitelist and режимна матриця enforcement.
         
@@ -60,6 +62,7 @@ class BulkTaggingService:
             space_key: Confluence space key (required for whitelist lookup)
             dry_run: If True, performs dry-run. Ignored in TEST mode (always dry-run)
             task_id: Optional task ID for cancellation support
+            skip_whitelist_filter: If True, skip whitelist filtering (used by tag_space)
         
         Returns:
             Dictionary with tagging results including whitelist filtering info
@@ -87,25 +90,24 @@ class BulkTaggingService:
             f"mode={mode}, dry_run_param={dry_run}, effective_dry_run={effective_dry_run}"
         )
         
-        # ✅ Remove duplicates while preserving order
+        # ✅ Strict mode: process only explicitly provided page_ids (no other sources)
         unique_page_ids = list(dict.fromkeys(page_ids))
         duplicates_removed = len(page_ids) - len(unique_page_ids)
-        
         if duplicates_removed > 0:
             logger.info(f"[TagPages] Removed {duplicates_removed} duplicate page_ids")
+
+        pages_to_process = unique_page_ids  # do not append children/ancestors/related pages
         
-        page_ids = unique_page_ids
-        
-        # ✅ Whitelist integration - load allowed IDs
+        # ✅ Whitelist integration (STRICT, NO TREE TRAVERSAL)
         whitelist_manager = WhitelistManager()
-        
         try:
-            allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
+            # Use entry points only; DO NOT traverse children to avoid extra Confluence calls
+            allowed_ids = {int(x) for x in whitelist_manager.get_entry_points(space_key)}
             logger.info(
-                 f"[WHITELIST] Loaded from whitelist_config.json for space={space_key}: {len(allowed_ids)} entries"
+                f"[WHITELIST] Loaded entry points for space={space_key}: {len(allowed_ids)} entries (no recursion)"
             )
             logger.debug(f"[TagPages] Allowed IDs (first 20): {sorted(list(allowed_ids))[:20]}")
-            
+
             if not allowed_ids:
                 logger.error(f"[TagPages] No whitelist entries for space {space_key}")
                 raise HTTPException(
@@ -121,19 +123,19 @@ class BulkTaggingService:
                 detail=f"Failed to load whitelist: {str(e)}"
             )
         
-        # ✅ Filter page_ids by whitelist (except in PROD mode)
-        page_ids_int = [int(pid) for pid in page_ids]
+        # ✅ Filter page_ids by whitelist (except when skip_whitelist_filter=True for tag_space)
+        page_ids_int = [int(pid) for pid in pages_to_process]
         
-        if mode == "PROD":
-            # PROD mode: all pages allowed, no whitelist filtering
+        if skip_whitelist_filter:
+            # tag_space mode: process ALL pages without whitelist filtering
             filtered_ids = page_ids_int
-            logger.info(f"[TagPages] PROD mode: processing all {len(filtered_ids)} pages (no whitelist filter)")
+            logger.info(f"[TagPages] skip_whitelist_filter=True (tag_space mode): processing all {len(filtered_ids)} pages (no whitelist filter)")
         else:
-            # TEST/SAFE_TEST: filter by whitelist
+            # ALL other modes (TEST/SAFE_TEST/PROD): filter by whitelist
             filtered_ids = [pid for pid in page_ids_int if pid in allowed_ids]
             logger.info(
-                f"[TagPages] Whitelist filtering: "
-                f"requested={len(page_ids)}, allowed={len(allowed_ids)}, filtered={len(filtered_ids)}"
+                f"[TagPages] Whitelist filtering (mode={mode}): "
+                f"requested={len(pages_to_process)}, allowed={len(allowed_ids)}, filtered={len(filtered_ids)}"
             )
             
             if not filtered_ids:
@@ -145,7 +147,7 @@ class BulkTaggingService:
         
         results = []
         success_count = 0
-        skipped_due_to_whitelist = len(page_ids) - len(filtered_ids)
+        skipped_due_to_whitelist = len(pages_to_process) - len(filtered_ids)
         error_count = 0
 
         logger.info(
@@ -153,117 +155,136 @@ class BulkTaggingService:
             f"(mode={mode}, effective_dry_run={effective_dry_run}, skipped={skipped_due_to_whitelist})"
         )
 
-        # Process filtered pages only
-        for page_id_int in filtered_ids:
-            # ✅ Перевірка чи не зупинено процес
-            if task_id and not ACTIVE_TASKS.get(task_id, True):
-                logger.info(f"[TagPages] Task {task_id} stopped by user, breaking loop")
-                break
+        # Apply micro-batching to reduce concurrent pressure on rate-limited APIs
+        patch = get_optimization_patch_v2()
+        batches = patch.micro_batch(filtered_ids)
+        logger.info(f"[TagPages] Micro-batching: {len(filtered_ids)} pages into {len(batches)} batches of ~2")
+        
+        # Process filtered pages with micro-batching
+        for batch_idx, batch in enumerate(batches, 1):
+            logger.debug(f"[TagPages] Processing batch {batch_idx}/{len(batches)} with {len(batch)} pages")
             
-            page_id = str(page_id_int)
-            try:
-                logger.info(f"[TagPages] Processing page {page_id} (effective_dry_run={effective_dry_run})")
+            for page_id_int in batch:
+                # ✅ Перевірка чи не зупинено процес
+                if task_id and not ACTIVE_TASKS.get(task_id, True):
+                    logger.info(f"[TagPages] Task {task_id} stopped by user, breaking loop")
+                    break
                 
-                # Завантажуємо контент сторінки
-                page = await self.confluence.get_page(page_id)
-                if not page:
-                    logger.warning(f"[TagPages] Page {page_id} not found")
+                page_id = str(page_id_int)
+                try:
+                    logger.info(f"[TagPages] Processing page {page_id} (effective_dry_run={effective_dry_run})")
+                    
+                    # Завантажуємо контент сторінки
+                    page = await self.confluence.get_page(page_id, expand="body.storage")
+                    if not page:
+                        logger.warning(f"[TagPages] Page {page_id} not found")
+                        error_count += 1
+                        results.append({
+                            "page_id": page_id,
+                            "status": "error",
+                            "message": "Page not found"
+                        })
+                        continue
+                    
+                    html = page.get("body", {}).get("storage", {}).get("value", "")
+                    text = prepare_ai_context(html)
+                    
+                    # Формуємо індивідуальний AI-промпт на основі контенту
+                    logger.info(f"[TagPages] Calling TaggingAgent via router for page {page_id}")
+                    from src.agents.tagging_agent import TaggingAgent
+                    agent = TaggingAgent(ai_router=router)
+                    tags = await agent.suggest_tags(text)
+                    
+                    logger.info(f"[TagPages] Generated tags for {page_id}: {tags}")
+                    
+                    # Flatten tags and compare with existing
+                    flat_tags = flatten_tags(tags)
+                    logger.debug(f"[TagPages] Flattened tags: {flat_tags}")
+                    
+                    # Get existing labels
+                    existing_labels = await self.confluence.get_labels(page_id)
+                    logger.debug(f"[TagPages] Existing labels: {existing_labels}")
+                    
+                    # Calculate differences
+                    proposed = set(flat_tags)
+                    existing = set(existing_labels)
+                    to_add = proposed - existing
+                    
+                    logger.info(f"[TagPages] Tag comparison for {page_id}: proposed={len(proposed)}, existing={len(existing)}, to_add={len(to_add)}")
+                    
+                    # Використовуємо effective_dry_run для перевірки режиму
+                    if effective_dry_run:
+                        # У TEST режимі всі оновлення заборонені (навіть для whitelist сторінок)
+                        status = "forbidden" if mode == "TEST" else "dry_run"
+                        logger.info(f"[TagPages] [{status.upper()}] Would add labels for {page_id}: {list(to_add)}")
+                        success_count += 1
+                        results.append({
+                            "page_id": page_id,
+                            "status": status,
+                            "tags": {
+                                "proposed": list(proposed),
+                                "existing": list(existing),
+                                "added": [],
+                                "to_add": list(to_add)
+                            },
+                            "dry_run": True
+                        })
+                        continue
+                    
+                    # Real update mode: page is already in whitelist (filtered_ids)
+                    if to_add:
+                        logger.info(f"[TagPages] Updating labels for page {page_id}: adding {list(to_add)}")
+                        await self.confluence.update_labels(page_id, list(to_add))
+                        logger.info(f"[TagPages] Successfully updated labels for page {page_id}")
+                    else:
+                        logger.info(f"[TagPages] No new labels to add for page {page_id}")
+                    
+                    success_count += 1
+                    results.append({
+                        "page_id": page_id,
+                        "status": "updated",
+                        "tags": {
+                            "proposed": list(proposed),
+                            "existing": list(existing),
+                            "added": list(to_add),
+                            "to_add": []
+                        },
+                        "dry_run": False
+                    })
+
+                except Exception as e:
+                    logger.error(f"[TagPages] Failed to process page {page_id}: {e}")
                     error_count += 1
                     results.append({
                         "page_id": page_id,
                         "status": "error",
-                        "message": "Page not found"
+                        "message": str(e),
+                        "tags": None
                     })
-                    continue
                 
-                text = page.get("body", {}).get("storage", {}).get("value", "")
-                logger.debug(f"[TagPages] Extracted {len(text)} chars from page {page_id}")
-                
-                # Формуємо індивідуальний AI-промпт на основі контенту
-                logger.info(f"[TagPages] Calling TaggingAgent via router for page {page_id}")
-                from src.agents.tagging_agent import TaggingAgent
-                agent = TaggingAgent(ai_router=router)
-                tags = await agent.suggest_tags(text)
-                
-                logger.info(f"[TagPages] Generated tags for {page_id}: {tags}")
-                
-                # Flatten tags and compare with existing
-                flat_tags = flatten_tags(tags)
-                logger.debug(f"[TagPages] Flattened tags: {flat_tags}")
-                
-                # Get existing labels
-                existing_labels = await self.confluence.get_labels(page_id)
-                logger.debug(f"[TagPages] Existing labels: {existing_labels}")
-                
-                # Calculate differences
-                proposed = set(flat_tags)
-                existing = set(existing_labels)
-                to_add = proposed - existing
-                
-                logger.info(f"[TagPages] Tag comparison for {page_id}: proposed={len(proposed)}, existing={len(existing)}, to_add={len(to_add)}")
-                
-                # Використовуємо effective_dry_run для перевірки режиму
-                if effective_dry_run:
-                    # У TEST режимі всі оновлення заборонені (навіть для whitelist сторінок)
-                    status = "forbidden" if mode == "TEST" else "dry_run"
-                    logger.info(f"[TagPages] [{status.upper()}] Would add labels for {page_id}: {list(to_add)}")
-                    success_count += 1
-                    results.append({
-                        "page_id": page_id,
-                        "status": status,
-                        "tags": {
-                            "proposed": list(proposed),
-                            "existing": list(existing),
-                            "added": [],
-                            "to_add": list(to_add)
-                        },
-                        "dry_run": True
-                    })
-                    continue
-                
-                # Real update mode: page is already in whitelist (filtered_ids)
-                if to_add:
-                    logger.info(f"[TagPages] Updating labels for page {page_id}: adding {list(to_add)}")
-                    await self.confluence.update_labels(page_id, list(to_add))
-                    logger.info(f"[TagPages] Successfully updated labels for page {page_id}")
-                else:
-                    logger.info(f"[TagPages] No new labels to add for page {page_id}")
-                
-                success_count += 1
-                results.append({
-                    "page_id": page_id,
-                    "status": "updated",
-                    "tags": {
-                        "proposed": list(proposed),
-                        "existing": list(existing),
-                        "added": list(to_add),
-                        "to_add": []
-                    },
-                    "dry_run": False
-                })
-
-            except Exception as e:
-                logger.error(f"[TagPages] Failed to process page {page_id}: {e}")
-                error_count += 1
-                results.append({
-                    "page_id": page_id,
-                    "status": "error",
-                    "message": str(e),
-                    "tags": None
-                })
+                # ✅ Оновити прогрес після обробки сторінки
+                if task_id and task_id in TASK_PROGRESS:
+                    TASK_PROGRESS[task_id]["processed"] += 1
             
-            # ✅ Оновити прогрес після обробки сторінки
-            if task_id and task_id in TASK_PROGRESS:
-                TASK_PROGRESS[task_id]["processed"] += 1
-
-            # Throttling
-            await asyncio.sleep(0.3)
+            # Small pause between batches to avoid burst traffic
+            if batch_idx < len(batches):
+                logger.debug(f"[TagPages] Batch {batch_idx} complete, pausing 0.5s before next batch")
+                await asyncio.sleep(0.5)
 
         # Final result
         logger.info(f"[TagPages] Tagging completed: {success_count} success, {error_count} errors, {skipped_due_to_whitelist} skipped")
         
+        # Collect patch metrics
+        patch_stats = patch.get_statistics()
+        logger.info(
+            f"[TagPages] Patch v2.0 metrics: "
+            f"Gemini success={patch_stats.get('gemini_success_rate', 'N/A')}, "
+            f"fallback={patch_stats.get('fallback_rate', 'N/A')}, "
+            f"avg_duration={patch_stats.get('avg_duration_ms', 'N/A')}ms"
+        )
+        
         return {
-            "total": len(page_ids),
+            "total": len(pages_to_process),
             "processed": len(filtered_ids),
             "success": success_count,
             "errors": error_count,
@@ -272,6 +293,7 @@ class BulkTaggingService:
             "mode": mode,
             "dry_run": effective_dry_run,
             "whitelist_enabled": True,
+            "patch_metrics": patch_stats,
             "details": results
         }
 
@@ -295,7 +317,6 @@ class BulkTaggingService:
             Dictionary with tagging results
         """
         from src.agents.summary_agent import SummaryAgent
-        from src.utils.html_to_text import html_to_text
         from src.core.whitelist.whitelist_manager import WhitelistManager
         
         mode = self.agent.mode
@@ -325,23 +346,21 @@ class BulkTaggingService:
         
         logger.info(f"[TagTree] Whitelist enabled for space={space_key}")
         try:
-            allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
+            # ✅ ВАЖЛИВО: Для tag_tree, нам потрібна лише перевірка, чи root_page_id є в entry_points,
+            # НЕ всі дочірні сторінки від усіх entry_points (це робить _collect_all_children)
+            entry_points = whitelist_manager.get_entry_points(space_key)
+            allowed_ids = set(entry_points)
             allowed_ids_str = {str(pid) for pid in allowed_ids}
+            
             logger.info(
-                 f"[WHITELIST] Loaded from whitelist_config.json for space={space_key}: {len(allowed_ids_str)} entries"
+                 f"[WHITELIST] Loaded entry points for space={space_key}: {len(allowed_ids_str)} entries"
             )
             logger.debug(
-                f"[TagTree] Allowed IDs (first 20): {sorted(list(allowed_ids_str))[:20]}"
-            )
-            logger.error(
-                "[TAG-TREE-DEBUG] whitelist_ids=%s", sorted(list(allowed_ids_str))[:50]
-            )
-            logger.error(
-                "[TAG-TREE-DEBUG] whitelist_ids types=%s", {type(x) for x in allowed_ids_str}
+                f"[TagTree] Entry point IDs (first 20): {sorted(list(allowed_ids_str))[:20]}"
             )
             
             if not allowed_ids:
-                logger.error(f"[TagTree] No whitelist entries for space {space_key}")
+                logger.error(f"[TagTree] No whitelist entry points for space {space_key}")
                 return {
                     "status": "error",
                     "message": f"No whitelist entries for space {space_key}. Add entries to whitelist_config.json",
@@ -351,22 +370,18 @@ class BulkTaggingService:
                     "errors": 1
                 }
             
-            # Перевірка що root_page_id в whitelist (крім PROD режиму)
+            # Перевірка що root_page_id в whitelist entry points (крім PROD режиму)
             if mode != "PROD":  # ✅ PROD дозволяє будь-які root_page_id
                 logger.info(
-                    f"[WHITELIST] Checking root_id={root_page_id} (type={type(root_page_id)}) "
-                    f"against whitelist of {len(allowed_ids_str)} entries"
-                )
-                logger.error(
-                    "[TAG-TREE-DEBUG] root_page_id=%s (type=%s)", root_page_id, type(root_page_id)
+                    f"[WHITELIST] Checking root_id={root_page_id} against whitelist entry points"
                 )
                 if str(root_page_id) not in allowed_ids_str:
                     logger.error(
-                        f"[TagTree] Root page {root_page_id} not in whitelist for space {space_key}"
+                        f"[TagTree] Root page {root_page_id} not in whitelist entry points for space {space_key}"
                     )
                     return {
                         "status": "error",
-                        "message": f"Root page {root_page_id} is not allowed by whitelist for space {space_key}",
+                        "message": f"Root page {root_page_id} is not an allowed entry point for space {space_key}",
                         "total": 0,
                         "processed": 0,
                         "success": 0,
@@ -377,7 +392,7 @@ class BulkTaggingService:
             else:
                 logger.info(f"[TagTree] PROD mode - skipping root_page_id whitelist check for {root_page_id}")
             
-            logger.info(f"[TagTree] Root page {root_page_id} is in whitelist - allowed")
+            logger.info(f"[TagTree] Root page {root_page_id} is in whitelist entry points - allowed")
             
         except Exception as e:
             logger.error(f"[TagTree] Failed to load whitelist: {e}")
@@ -390,35 +405,22 @@ class BulkTaggingService:
                 "errors": 1
             }
         
-        # Section-based logic removed: use open label set (no filtering)
-        allowed_labels: list[str] = []
-        logger.info("[tag-tree] Section detection removed; using unbounded label set (allowed_labels=[]) for tagging")
+        # ✅ ВАЖЛИВО: Для tag_tree без section-based filtering, 
+        # передаємо пустий список - це означає "без обмеження на теги"
+        allowed_labels: List[str] = []
+        logger.info("[tag-tree] Using unbounded tag set (allowed_labels=[]) - all proposed tags allowed")
         
         # Step 3: Collect all pages in tree
         logger.info(f"[TagTree] Collecting page tree from root {root_page_id}")
         all_page_ids = await self._collect_all_children(root_page_id)
         logger.info(f"[TagTree] Collected {len(all_page_ids)} total pages in tree")
         
-        # ✅ NEW: Filter by whitelist
-        if whitelist_enabled and allowed_ids is not None:
-            pages_to_process = []
-            skipped_by_whitelist = 0
-            
-            for page_id in all_page_ids:
-                page_id_int = int(page_id)
-                if page_id_int in allowed_ids:
-                    pages_to_process.append(page_id)
-                else:
-                    skipped_by_whitelist += 1
-            
-            logger.info(
-                f"[TagTree] After whitelist filter: {len(pages_to_process)} to process, "
-                f"{skipped_by_whitelist} skipped (not in whitelist)"
-            )
-        else:
-            pages_to_process = all_page_ids
-            skipped_by_whitelist = 0
-            logger.info(f"[TagTree] No whitelist filter - processing all {len(all_page_ids)} pages")
+        # ✅ ВАЖЛИВО: У tag_tree, дочірні сторінки автоматично дозволені 
+        # (бо вони підпорядковані дозволеному root_page_id)
+        # Перевіряється лише root_page_id - дочірні не потребують окремої перевірки
+        pages_to_process = all_page_ids  # Усі дочірні дозволені як частина дерева
+        skipped_by_whitelist = 0
+        logger.info(f"[TagTree] Processing all {len(pages_to_process)} pages in tree (all children allowed by root_page_id)")
         
         # Step 4: Process each page
         results = []
@@ -450,7 +452,7 @@ class BulkTaggingService:
                 
                 # Extract content
                 html_content = page.get("body", {}).get("storage", {}).get("value", "")
-                text_content = html_to_text(html_content)
+                text_content = prepare_ai_context(html_content)
                 logger.debug(f"[tag-tree] Extracted {len(text_content)} chars of text")
                 
                 # Generate tags with dynamic whitelist filtering (already deduplicated in agent)
@@ -655,71 +657,15 @@ class BulkTaggingService:
             f"mode={mode}, dry_run_param={dry_run}, effective_dry_run={effective_dry_run}"
         )
         
+        # ✅ ВАЖЛИВО: tag_space обробляє ВСІ сторінки спейсу - whitelist НЕ використовується!
+        # На відміну від tag_pages, tag_tree, auto_tag_page - tag_space призначений для повної
+        # обробки будь-якого спейсу без обмежень, це пакетний режим для адміністраторів
+        logger.info(
+            f"[TagSpace] tag_space mode: processing ALL pages in space (NO whitelist filtering)"
+        )
+        
         # ✅ Обгортаємо всю логіку у try/finally для гарантованого очищення
         try:
-            # Ініціалізація WhitelistManager
-            whitelist_manager = WhitelistManager()
-            
-            # ✅ Whitelist завжди застосовується для tag-space
-            whitelist_enabled = True
-            
-            logger.info(
-                f"[TagSpace] Using whitelist for scope in mode={mode}, effective_dry_run={effective_dry_run}. "
-                f"Whitelist controls which pages are processed, dry_run controls whether to write."
-            )
-            
-            # Завантаження дозволених ID (завжди для tag-space)
-            try:
-                allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
-                logger.info(
-                     f"[WHITELIST] Loaded from whitelist_config.json for space={space_key}: {len(allowed_ids)} entries"
-                )
-                logger.debug(
-                    f"[TagSpace] Allowed IDs (first 20): {sorted(list(allowed_ids))[:20]}"
-                )
-                
-                if not allowed_ids:
-                    logger.warning(
-                        f"[TagSpace] No whitelist entries found for {space_key}. "
-                        f"Configure whitelist in whitelist_config.json to process pages."
-                    )
-                    return {
-                        "task_id": task_id,
-                        "total": 0,
-                        "processed": 0,
-                        "success": 0,
-                        "errors": 0,
-                        "skipped_by_whitelist": 0,
-                        "dry_run": effective_dry_run,
-                        "mode": mode,
-                        "whitelist_enabled": whitelist_enabled,
-                        "details": [{
-                            "space_key": space_key,
-                            "status": "error",
-                            "message": f"No whitelist entries for space {space_key}. Add entries to whitelist_config.json",
-                            "tags": None
-                        }]
-                    }
-            except Exception as e:
-                logger.error(f"[TagSpace] Failed to load whitelist: {e}")
-                return {
-                    "task_id": task_id,
-                    "total": 0,
-                    "processed": 0,
-                    "success": 0,
-                    "errors": 1,
-                    "skipped_by_whitelist": 0,
-                    "dry_run": effective_dry_run,
-                    "mode": mode,
-                    "whitelist_enabled": whitelist_enabled,
-                    "details": [{
-                        "space_key": space_key,
-                        "status": "error",
-                        "message": f"Failed to load whitelist: {str(e)}",
-                        "tags": None
-                    }]
-                }
-            
             # Завантаження всіх сторінок простору
             logger.info(f"[tag-space] Fetching all pages in space '{space_key}'")
             
@@ -736,7 +682,7 @@ class BulkTaggingService:
                     "skipped_by_whitelist": 0,
                     "dry_run": effective_dry_run,
                     "mode": mode,
-                    "whitelist_enabled": whitelist_enabled,
+                    "whitelist_enabled": False,
                     "details": [{
                         "space_key": space_key,
                         "status": "error",
@@ -756,7 +702,7 @@ class BulkTaggingService:
                     "skipped_by_whitelist": 0,
                     "dry_run": effective_dry_run,
                     "mode": mode,
-                    "whitelist_enabled": whitelist_enabled,
+                    "whitelist_enabled": False,
                     "details": [{
                         "space_key": space_key,
                         "status": "error",
@@ -770,59 +716,49 @@ class BulkTaggingService:
             # ✅ Ініціалізуємо прогрес
             TASK_PROGRESS[task_id] = {"total": len(page_ids), "processed": 0}
             
-            # Фільтрація за whitelist (завжди для tag-space)
-            pages_to_process = []
+            # ✅ ВАЖЛИВО: tag_space обробляє ВСІ сторінки спейсу БЕЗ whitelist фільтрації!
+            # На відміну від tag_pages, tag_tree тощо - tag_space призначений для повної
+            # обробки будь-якого спейсу, whitelist тут не використовується
+            pages_to_process = page_ids
             skipped_by_whitelist = 0
             
-            for page_id in page_ids:
-                page_id_int = int(page_id)
-                
-                # Завжди перевіряємо whitelist для tag-space
-                if whitelist_manager.is_allowed(space_key, page_id_int, allowed_ids):
-                    pages_to_process.append(page_id)
-                else:
-                    skipped_by_whitelist += 1
-            
             logger.info(
-                f"[TagSpace] After whitelist filter: {len(pages_to_process)} to process, "
-                f"{skipped_by_whitelist} skipped. "
+                f"[TagSpace] Processing all {len(pages_to_process)} pages in space without whitelist filtering. "
                 f"Mode={mode}, effective_dry_run={effective_dry_run}"
             )
             
-            # ✅ Перевірка що є сторінки після whitelist-фільтрації
+            # ✅ Перевірка що є сторінки до обробки
             if not pages_to_process:
-                logger.error(
-                    f"[TagSpace] No pages allowed by whitelist for space {space_key}. "
-                    f"Total pages: {len(page_ids)}, all filtered by whitelist."
-                )
+                logger.error(f"[TagSpace] No pages found to process in space {space_key}")
                 return {
                     "task_id": task_id,
                     "status": "error",
-                    "message": f"No pages allowed by whitelist for space {space_key}",
-                    "total": len(page_ids),
+                    "message": f"No pages in space {space_key}",
+                    "total": 0,
                     "processed": 0,
                     "success": 0,
                     "errors": 0,
-                    "skipped_by_whitelist": len(page_ids),
+                    "skipped_by_whitelist": 0,
                     "dry_run": effective_dry_run,
                     "mode": mode,
-                    "whitelist_enabled": True,
+                    "whitelist_enabled": False,
                     "details": []
                 }
             
-            # Обробка сторінок з передачею allowed_ids (завжди передаємо для tag-space)
+            # Обробка сторінок БЕЗ whitelist фільтрації
             result = await self.tag_pages(
                 pages_to_process, 
                 space_key=space_key,
                 dry_run=effective_dry_run,
-                task_id=task_id
+                task_id=task_id,
+                skip_whitelist_filter=True  # ✅ tag_space обробляє ВСІ сторінки!
             )
             
-            # Додаємо інформацію про whitelist та task_id
+            # Додаємо інформацію про task_id
             result["task_id"] = task_id
-            result["skipped_by_whitelist"] = skipped_by_whitelist
+            result["skipped_by_whitelist"] = 0  # Для tag_space whitelist не використовується
             result["mode"] = mode
-            result["whitelist_enabled"] = whitelist_enabled
+            result["whitelist_enabled"] = False  # tag_space не використовує whitelist
             
             # Зберігаємо результат у реєстрі
             RESULTS_REGISTRY[task_id] = result
@@ -836,10 +772,10 @@ class BulkTaggingService:
                 "processed": result['processed'],  # ✅ Already an int from tag_pages
                 "success": result['success'],       # ✅ Already an int
                 "errors": result['errors'],         # ✅ Already an int
-                "skipped_by_whitelist": skipped_by_whitelist,  # ✅ Use local variable, not result
+                "skipped_by_whitelist": 0,  # ✅ Для tag_space = 0 (whitelist не використовується)
                 "dry_run": effective_dry_run,
                 "mode": mode,
-                "whitelist_enabled": whitelist_enabled,
+                "whitelist_enabled": False,  # tag_space не використовує whitelist
                 "details": result['details']
             }
 

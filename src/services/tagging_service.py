@@ -3,6 +3,7 @@ from src.agents.tagging_agent import TaggingAgent
 from src.clients.confluence_client import ConfluenceClient
 from src.core.ai.router import router
 from src.core.logging.logger import get_logger
+from src.services.tagging_context import prepare_ai_context
 
 logger = get_logger(__name__)
 
@@ -99,16 +100,20 @@ class TaggingService:
             whitelist_manager = WhitelistManager()
             
             try:
-                allowed_ids = await whitelist_manager.get_allowed_ids(space_key, self.confluence)
+                # ✅ ВАЖЛИВО: Для auto_tag_page, нам потрібна лише перевірка entry_points,
+                # не всі дочірні сторінки (на відміну від tag_space)
+                entry_points = whitelist_manager.get_entry_points(space_key)
+                allowed_ids = set(entry_points)
+                
                 logger.info(
-                    f"[WHITELIST] Loaded from whitelist_config.json for space={space_key}: {len(allowed_ids)} entries"
+                    f"[WHITELIST] Loaded entry points for space={space_key}: {len(allowed_ids)} entries"
                 )
-                logger.debug(f"[AutoTag] Allowed IDs: {sorted(list(allowed_ids))[:20]}")
+                logger.debug(f"[AutoTag] Entry point IDs: {sorted(list(allowed_ids))[:20]}")
                 
                 page_id_int = int(page_id)
                 
                 if page_id_int not in allowed_ids:
-                    logger.warning(f"[AutoTag] Page {page_id} not in whitelist for space {space_key}")
+                    logger.warning(f"[AutoTag] Page {page_id} not in whitelist entry points for space {space_key}")
                     return {
                         "status": "forbidden",
                         "page_id": page_id,
@@ -119,7 +124,7 @@ class TaggingService:
                         "tags": None
                     }
                 
-                logger.info(f"[AutoTag] Page {page_id} validated through whitelist")
+                logger.info(f"[AutoTag] Page {page_id} validated against whitelist entry points")
             except Exception as e:
                 logger.error(f"[AutoTag] Whitelist validation failed: {e}")
                 return {
@@ -147,7 +152,8 @@ class TaggingService:
                 "tags": None
             }
 
-        text = page.get("body", {}).get("storage", {}).get("value", "")
+        html = page.get("body", {}).get("storage", {}).get("value", "")
+        text = prepare_ai_context(html)
         logger.debug(f"[AutoTag] Extracted text length: {len(text)}")
 
         logger.info(f"[AutoTag] Calling TaggingAgent for page {page_id}")

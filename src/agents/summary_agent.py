@@ -317,17 +317,22 @@ class SummaryAgent(BaseAgent):
             duplicates_count = len(ai_tags) - len(unique_tags)
             logger.info(f"Removed {duplicates_count} duplicate tags. Deduplicated: {unique_tags}")
         
-        # ✅ Step 4: Filter to only include allowed_labels
-        filtered_tags = []
-        for tag in unique_tags:
-            if tag in allowed_labels:
-                filtered_tags.append(tag)
-        
-        logger.info(f"Filtered to {len(filtered_tags)} allowed tags: {filtered_tags}")
-        
-        if len(unique_tags) > len(filtered_tags):
-            removed_tags = [tag for tag in unique_tags if tag not in allowed_labels]
-            logger.warning(f"Removed {len(removed_tags)} disallowed tags: {removed_tags}")
+        # ✅ Step 4: Filter to only include allowed_labels (if specified)
+        # If allowed_labels is empty [], all tags are allowed (unbounded mode for tag-tree)
+        if not allowed_labels:
+            filtered_tags = unique_tags
+            logger.info(f"Unbounded mode (allowed_labels=[]): returning all {len(unique_tags)} suggested tags")
+        else:
+            filtered_tags = []
+            for tag in unique_tags:
+                if tag in allowed_labels:
+                    filtered_tags.append(tag)
+            
+            logger.info(f"Filtered to {len(filtered_tags)} allowed tags: {filtered_tags}")
+            
+            if len(unique_tags) > len(filtered_tags):
+                removed_tags = [tag for tag in unique_tags if tag not in allowed_labels]
+                logger.warning(f"Removed {len(removed_tags)} disallowed tags: {removed_tags}")
         
         return filtered_tags
     

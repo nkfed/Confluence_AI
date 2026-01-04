@@ -1,0 +1,37 @@
+"""
+MCP AGENT PROMPT — COMPREHENSIVE PYTEST EXECUTION
+
+OBJECTIVE:
+Execute automated comprehensive test suite with all reporting, timing analysis, and CI guards.
+
+EXECUTE THIS COMMAND:
+
+    python ci/run_comprehensive_tests.py
+
+WHAT THIS DOES:
+
+1. Sets environment: DISABLE_UVICORN_AUTOSTART=1, TEST_WHITELIST_ENABLED=1
+2. Runs pytest with plugins: timing, HTML report, logging
+3. Collects test execution times (top 20 slowest tests)
+4. Checks tag endpoint mode coverage (TEST/SAFE_TEST/PROD)
+5. Validates CI guards (uvicorn, whitelist)
+6. Generates summary report: docs/reports/test_execution_summary_*.md
+
+OUTPUT FILES:
+
+- test_report.html             Interactive test results
+- docs/reports/test_execution_summary_*.md   Comprehensive summary
+- pytest.log                   Detailed pytest output
+
+EXIT CODE:
+
+- 0 = All tests passed + full mode coverage
+- 1 = Test failures OR coverage gaps OR CI guard violations
+
+AGENT KEYWORDS:
+
+pytest, testing, automation, CI, HTML report, tag endpoints, mode coverage,
+test summary, execution timing, Confluence AI tagging
+
+STATUS: Ready for autonomous agent execution
+"""

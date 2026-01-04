@@ -7,10 +7,13 @@ using Google's Generative AI REST API for text generation and token counting.
 
 import asyncio
 import os
+import random
+import time
 from typing import Any, Optional
 import httpx
 from src.core.ai.interface import AIProvider, AIResponse
 from src.core.ai.rate_limit import SimpleRateLimiter
+from src.core.ai.optimization_patch_v2 import get_optimization_patch_v2
 from src.core.logging.logger import get_logger
 from src.core.logging.timing import log_timing
 
@@ -139,6 +142,13 @@ class GeminiClient:
         
         params = {"key": self.api_key}
         
+        # Initialize patch for metrics
+        patch = get_optimization_patch_v2()
+        call_start_time = time.time()
+        
+        # Pre-flight rate control: check if we should wait before calling
+        await patch.preflight_cooldown()
+        
         for attempt in range(1, max_retries + 1):
             try:
                 logger.info(f"[Gemini] Attempt {attempt}/{max_retries} with model {model_name}")
@@ -176,6 +186,17 @@ class GeminiClient:
                     f"(prompt: {prompt_tokens}, completion: {completion_tokens})"
                 )
                 
+                # Record call metrics to patch
+                duration_ms = (time.time() - call_start_time) * 1000
+                await patch.record_call(
+                    provider="gemini",
+                    success=True,
+                    tokens=total_tokens,
+                    duration_ms=duration_ms,
+                    cooldown_reason="normal",
+                    cooldown_ms=0
+                )
+                
                 # Convert to standardized response
                 return AIResponse(
                     text=text,
@@ -198,19 +219,49 @@ class GeminiClient:
                         f"[RETRY] Provider=gemini, attempt={attempt}, error={e}, switching=False"
                     )
                     
+                    # Record 429 error in patch
+                    patch.record_429()
+                    
                     if attempt == max_retries:
                         logger.error("[Gemini] Max retries reached, giving up")
+                        
+                        # Record failed call to patch
+                        duration_ms = (time.time() - call_start_time) * 1000
+                        await patch.record_call(
+                            provider="gemini",
+                            success=False,
+                            tokens=0,
+                            duration_ms=duration_ms,
+                            fallback_reason="429_max_retries",
+                            cooldown_reason=None,
+                            cooldown_ms=0
+                        )
+                        
                         raise RuntimeError(
                             f"Gemini rate limit error after {max_retries} attempts: {e}"
                         )
                     
-                    logger.info(f"[Gemini] Waiting {delay}s before retry...")
-                    await asyncio.sleep(delay)
+                    # Adaptive cooldown: escalating wait based on consecutive 429s
+                    reason, wait_ms = await patch.adaptive_cooldown()
+                    logger.info(f"[PATCH v2] Adaptive cooldown: {reason} - waiting {wait_ms}ms")
                     delay *= 2  # Exponential backoff
                     continue
                 
                 # Other HTTP errors - raise immediately
                 logger.error(f"[Gemini] HTTP error {status_code}: {e}")
+                
+                # Record error to patch
+                duration_ms = (time.time() - call_start_time) * 1000
+                await patch.record_call(
+                    provider="gemini",
+                    success=False,
+                    tokens=0,
+                    duration_ms=duration_ms,
+                    fallback_reason=f"http_{status_code}",
+                    cooldown_reason=None,
+                    cooldown_ms=0
+                )
+                
                 try:
                     error_body = e.response.json()
                     logger.error(f"[Gemini] Error details: {error_body}")
@@ -220,6 +271,19 @@ class GeminiClient:
                 
             except Exception as e:
                 logger.error(f"[Gemini] Unexpected error: {e}")
+                
+                # Record error to patch
+                duration_ms = (time.time() - call_start_time) * 1000
+                await patch.record_call(
+                    provider="gemini",
+                    success=False,
+                    tokens=0,
+                    duration_ms=duration_ms,
+                    fallback_reason="unexpected_error",
+                    cooldown_reason=None,
+                    cooldown_ms=0
+                )
+                
                 raise RuntimeError(f"Gemini API error: {e}")
     
     async def count_tokens(

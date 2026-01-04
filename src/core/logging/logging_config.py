@@ -133,6 +133,46 @@ def get_logging_config() -> Dict[str, Any]:
                 "encoding": "utf-8",
                 "filters": ["request_id"],
             },
+            "file_ai": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "ai_calls.log"),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 10,
+                "encoding": "utf-8",
+                "filters": ["request_id"],
+            },
+            "file_ai_router": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "ai_router.log"),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 10,
+                "encoding": "utf-8",
+                "filters": ["request_id"],
+            },
+            "file_audit": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "audit.log"),
+                "maxBytes": 10 * 1024 * 1024,
+                "backupCount": 10,
+                "encoding": "utf-8",
+                "filters": ["request_id"],
+            },
+            "file_security": {
+                "class": "logging.handlers.RotatingFileHandler",
+                "formatter": formatter_name,
+                "level": log_level,
+                "filename": os.path.join(log_dir, "security.log"),
+                "maxBytes": 5 * 1024 * 1024,
+                "backupCount": 5,
+                "encoding": "utf-8",
+                "filters": ["request_id"],
+            },
         },
         "loggers": {
             "app": {
@@ -167,6 +207,26 @@ def get_logging_config() -> Dict[str, Any]:
             },
             "metrics": {
                 "handlers": ["file_metrics"],  # Only file, no console spam
+                "level": log_level,
+                "propagate": False,
+            },
+            "ai": {
+                "handlers": ["console", "file_ai"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "ai_router": {
+                "handlers": ["console", "file_ai_router"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "audit": {
+                "handlers": ["console", "file_audit"],
+                "level": log_level,
+                "propagate": False,
+            },
+            "security": {
+                "handlers": ["console", "file_security"],
                 "level": log_level,
                 "propagate": False,
             },

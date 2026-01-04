@@ -3,7 +3,7 @@
 Повна карта всієї документації проєкту з посиланнями та описами.
 
 **Дата оновлення:** 2 січня 2026  
-**Структура версія:** 3.0 (оптимізована)
+**Структура версія:** 4.0 (реструктурована)
 
 ---
 
@@ -55,7 +55,6 @@ docs/
 | Файл | Опис |
 |------|------|
 | **[architecture/MULTI_AI_ARCHITECTURE.md](architecture/MULTI_AI_ARCHITECTURE.md)** | Архітектура багатьох AI провайдерів |
-| **[architecture/UNIFIED_BULK_ARCHITECTURE.md](architecture/UNIFIED_BULK_ARCHITECTURE.md)** | Уніфікована архітектура bulk операцій |
 | **[architecture/AI_ROUTER_INTEGRATION.md](architecture/AI_ROUTER_INTEGRATION.md)** | Інтеграція AI роутера з системою |
 | **[architecture/AI_ROUTING_MODES.md](architecture/AI_ROUTING_MODES.md)** | Режими маршрутизації запитів |
 | **[architecture/AI_ROUTING_INSPECTOR.md](architecture/AI_ROUTING_INSPECTOR.md)** | Інспектор для дебагу маршрутизації |
@@ -70,22 +69,18 @@ docs/
 |------|----------|------|
 | **[bulk-operations/TAG_PAGES_ENDPOINT.md](bulk-operations/TAG_PAGES_ENDPOINT.md)** | `POST /bulk/tag-pages` | Тегування сторінок за ID |
 | **[bulk-operations/TAG_TREE_ENDPOINT.md](bulk-operations/TAG_TREE_ENDPOINT.md)** | `POST /bulk/tag-tree/{space_key}/{root_id}` | Тегування дерева сторінок |
-| **[bulk-operations/TAG_SPACE_ENDPOINT.md](bulk-operations/TAG_SPACE_ENDPOINT.md)** | `POST /bulk/tag-space/{space_key}` | Тегування всього простору |
 
-### Інтеграція та гайди
+### Whitelist для операцій
 
 | Файл | Опис |
 |------|------|
-| **[bulk-operations/TAG_PAGES_INTEGRATION_SUMMARY.md](bulk-operations/TAG_PAGES_INTEGRATION_SUMMARY.md)** | Інтеграція tag-pages з системою |
-| **[bulk-operations/TAG_PAGES_QUICKSTART.md](bulk-operations/TAG_PAGES_QUICKSTART.md)** | Quick start для tag-pages |
-| **[bulk-operations/TAG_PAGES_WHITELIST.md](bulk-operations/TAG_pages_WHITELIST.md)** | Whitelist для tag-pages |
+| **[bulk-operations/TAG_PAGES_WHITELIST.md](bulk-operations/TAG_PAGES_WHITELIST.md)** | Whitelist для tag-pages |
 
 ### Специфічні операції та исправления
 
 | Файл | Опис |
 |------|------|
 | **[bulk-operations/RESET_TAGS_ROOT_ID.md](bulk-operations/RESET_TAGS_ROOT_ID.md)** | Скидання тегів за root_id |
-| **[bulk-operations/RESET_TAGS_ROOT_ID_SUMMARY.md](bulk-operations/RESET_TAGS_ROOT_ID_SUMMARY.md)** | Summary для reset операцій |
 | **[bulk-operations/TAG_TREE_REFACTORING.md](bulk-operations/TAG_TREE_REFACTORING.md)** | Рефакторинг tag-tree логіки |
 | **[bulk-operations/TAG_TREE_WHITELIST.md](bulk-operations/TAG_TREE_WHITELIST.md)** | Whitelist для tag-tree |
 | **[bulk-operations/TAG_SPACE_EMPTY_BODY_FIX.md](bulk-operations/TAG_SPACE_EMPTY_BODY_FIX.md)** | Виправлення для пустих body |
@@ -115,7 +110,6 @@ docs/
 | **[whitelist/WHITELIST_MECHANISM.md](whitelist/WHITELIST_MECHANISM.md)** | Основна документація whitelist системи |
 | **[whitelist/WHITELIST_QUICK_START.md](whitelist/WHITELIST_QUICK_START.md)** | Quick start для whitelist |
 | **[whitelist/WHITELIST_RECURSIVE_FIX.md](whitelist/WHITELIST_RECURSIVE_FIX.md)** | Виправлення рекурсивної логіки |
-| **[whitelist/WHITELIST_ENV_REMOVAL.md](whitelist/WHITELIST_ENV_REMOVAL.md)** | Видалення .env whitelist перевірок |
 
 ---
 
@@ -137,17 +131,12 @@ docs/
 |------|------|
 | **[spaces/SPACES_METADATA_FILTERING.md](spaces/SPACES_METADATA_FILTERING.md)** | Фільтрація за metadata |
 | **[spaces/SPACES_METADATA_SUMMARY.md](spaces/SPACES_METADATA_SUMMARY.md)** | Summary для spaces |
-| **[spaces/SPACES_FILTERING_FIX.md](spaces/SPACES_FILTERING_FIX.md)** | Виправлення логіки фільтрації |
-| **[spaces/SPACES_NORMALIZATION_FIX.md](spaces/SPACES_NORMALIZATION_FIX.md)** | Нормалізація spaces даних |
-
 ---
 
 ## 📦 Archive (Deprecated та старі файли)
 
-| Файл | Статус | Причина |
-|------|--------|---------|
-| **[archive/agent-mode-system_SPLIT.md](archive/agent-mode-system_SPLIT.md)** | ⚠️ Archived | Розділено на 4 менші файли |
-| **[archive/BULK_ENDPOINTS_AUDIT_REPORT_DEPRECATED.md](archive/BULK_ENDPOINTS_AUDIT_REPORT_DEPRECATED.md)** | ⚠️ Archived | BulkTagRequest видалена з коду |
+Грудень 2025–січень 2026: перенесено 12 файлів (дублікати, summary-файли, legacy endpoints).
+Див. [docs/archive/](archive/) та [docs/audit/05_deprecated_files.md](audit/05_deprecated_files.md).
 
 ---
 
@@ -220,11 +209,11 @@ docs/
 
 - **Всього документів:** 41+
 - **Основні папки:** 9
-- **Архівовано:** 2
+- **Архівовактивних документів:** 30+
+- **Основні папки:** 9
+- **Архівовано:** 12
 - **Останнє оновлення:** 2 січня 2026
-- **Структура версія:** 3.0
-
----
+- **Структура версія:** 4
 
 ## 📝 Метадані
 
@@ -236,6 +225,6 @@ docs/
 
 ---
 
-**Останнє оновлення:** 2 січня 2026, 9:15  
-**Версія документації:** 3.0  
-**Статус:** ✅ Оптимізована структура
+**Останнє оновлення:** 2 січня 2026, 12:00  
+**Версія документації:** 4.0  
+**Статус:** ✅ Реструктурована v4.0

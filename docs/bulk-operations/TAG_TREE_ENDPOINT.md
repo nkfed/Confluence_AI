@@ -34,6 +34,12 @@ POST /bulk/tag-tree/{space_key}/{root_page_id}
 3. Збирає дерево сторінок
 4. Фільтрує через whitelist (обробляє тільки дозволені сторінки)
 
+## Centralized AI Context Preparation (v4.1)
+- HTML очищення (scripts/style/iframe/macros) → текст
+- Глобальний ліміт: TAGGING_MAX_CONTEXT_CHARS (конфіг через .env)
+- Використовується єдина функція `prepare_ai_context()` для всіх сторінок дерева
+- Логіка обходу дерева НЕ змінюється, змінюється лише підготовка контексту до AI
+
 ## Режимна матриця
 
 | Режим | Root перевірка | Tree scope | dry_run=true | dry_run=false | Записи |

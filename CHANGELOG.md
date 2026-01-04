@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### v4.1 (2026-01-03)
+- Centralized AI context preparation (`prepare_ai_context`) across tag-pages, tag-tree, tag-space, auto_tag_page.
+- Added TAGGING_MAX_CONTEXT_CHARS env/config for global context limit.
+- Docs and tests updated for centralized context flow.
+
 ### ✨ Added - 2025-12-30
 
 #### 🌲 Reset Tags with Tree Scope Support (`root_id` parameter)

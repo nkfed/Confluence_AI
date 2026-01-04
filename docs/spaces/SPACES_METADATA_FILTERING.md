@@ -354,12 +354,32 @@ curl -X GET "http://localhost:8000/spaces?exclude_types=personal&exclude_types=t
 
 ---
 
-## Summary
+---
 
-✅ **Створено:** 2 нові файли  
-✅ **Оновлено:** 4 файли  
-✅ **Тестів:** 10+ нових  
-✅ **Рядків коду:** ~500  
-✅ **Синтаксичних помилок:** 0  
+## 📝 What Changed
 
-**Система готова до використання!** 🚀
+### v1.0 (2025-12-30) - Merged with SPACES_METADATA_SUMMARY
+
+Додано у основний документ:
+- ✅ Поле `summary` з описом змін
+- ✅ Новий ендпоінт GET /spaces/meta для метаданих
+- ✅ Розширена фільтрація за типами та статусами
+- ✅ Новий метод `get_spaces_meta()` у SpaceService
+- ✅ Новий метод `filter_spaces()` у SpaceService
+- ✅ 10+ нових тестів для фільтрації
+- ✅ Приклади React та Vue інтеграції
+
+---
+
+## 🔗 Related Files
+
+- [TAG_PAGES_ENDPOINT.md](../bulk-operations/TAG_PAGES_ENDPOINT.md) - Тегування сторінок
+- [WHITELIST_MECHANISM.md](../whitelist/WHITELIST_MECHANISM.md) - Whitelist система
+- [test_spaces_api.py](../../tests/test_spaces_api.py) - Тести API
+- [test_spaces_meta.py](../../tests/test_spaces_meta.py) - Тести метаданих
+
+---
+
+**Version:** 1.0  
+**Last Updated:** 2025-12-30  
+**Status:** ✅ Complete

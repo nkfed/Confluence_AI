@@ -1,4 +1,5 @@
 from typing import Dict, Any
+from requests.exceptions import HTTPError
 from src.agents.summary_agent import SummaryAgent
 from src.core.ai.router import router
 from src.core.logging.logger import get_logger
@@ -27,7 +28,14 @@ class SummaryService:
         - повертає структурований словник з метаданими
         """
         logger.info(f"SummaryService.summarize_page called for page_id: {page_id}")
-        result = await self.agent.process_page(page_id)
+        
+        try:
+            result = await self.agent.process_page(page_id)
+        except HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"Page {page_id} not found in Confluence")
+                raise HTTPError(f"Page {page_id} not found", response=e.response)
+            raise
 
         if not result:
             logger.error(f"Failed to process page {page_id}")
@@ -55,7 +63,16 @@ class SummaryService:
                 "Метод update_page_with_summary відсутній у SummaryAgent."
             )
 
-        update_result = await self.agent.update_page_with_summary(page_id)
+        try:
+            update_result = await self.agent.update_page_with_summary(page_id)
+        except PermissionError as e:
+            logger.error(f"Permission denied for page {page_id}: {str(e)}")
+            raise
+        except HTTPError as e:
+            if e.response.status_code == 404:
+                logger.error(f"Page {page_id} not found in Confluence")
+                raise HTTPError(f"Page {page_id} not found", response=e.response)
+            raise
 
         logger.info(f"Successfully updated page {page_id}")
 

@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     PIPELINE_AGENT_MODE: str = _env("PIPELINE_AGENT_MODE", AGENT_MODE)
     CONTENT_REWRITE_AGENT_MODE: str = _env("CONTENT_REWRITE_AGENT_MODE", AGENT_MODE)
 
+    # Tagging context
+    TAGGING_MAX_CONTEXT_CHARS: int = int(os.getenv("TAGGING_MAX_CONTEXT_CHARS", "3000"))
+
     # Note: Old whitelist variables (ALLOWED_TAGGING_PAGES, SUMMARY_AGENT_TEST_PAGE, etc.)
     # have been removed. Use whitelist_config.json with WhitelistManager instead.
     ALLOWED_TAGGING_PAGES: str = _env("ALLOWED_TAGGING_PAGES", "")

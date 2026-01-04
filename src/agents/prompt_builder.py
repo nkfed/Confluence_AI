@@ -22,7 +22,8 @@ class PromptBuilder:
         
         Args:
             content: Page content to analyze
-            allowed_labels: List of allowed tags for this section
+            allowed_labels: List of allowed tags for this section.
+                            If empty [], all tags are allowed (unbounded mode for tag-tree)
             dry_run: If True, use test.txt mode, otherwise prod.txt
             
         Returns:
@@ -35,11 +36,27 @@ class PromptBuilder:
             ...     dry_run=True
             ... )
         """
+        from src.config.tagging_settings import TAG_CATEGORIES
+        
         # Load base template
         base_template = PromptLoader.load("tagging", filename="base.txt")
         
-        # Build ALLOWED TAGS section (plain text, each tag on new line)
-        allowed_tags_section = "ALLOWED TAGS:\n" + "\n".join(f"- {label}" for label in allowed_labels)
+        # ✅ ВАЖЛИВО: Якщо allowed_labels порожня, це означає "без обмеження"
+        # Генеруємо повний список всіх можливих тегів
+        if not allowed_labels:
+            # Generate all possible tags by category (prefix-based)
+            # For unbounded mode, we tell AI to use standard tag prefixes
+            allowed_labels_text = """ALLOWED TAGS (All Standard Tags):
+- All tags starting with: doc-, domain-, kb-, tool-
+
+Examples:
+- doc-tech, doc-business, doc-process, doc-requirements, doc-onboarding, doc-architecture, doc-template, doc-prompt-template, doc-ai-tools
+- domain-ehealth-core, domain-ai-integration, domain-helpdesk-site, domain-rehab-1-0, domain-rehab-2-0
+- kb-overview, kb-canonical, kb-components, kb-template
+- tool-confluence, tool-vscode, tool-pycharm, tool-rovo-agent, tool-gemini, tool-openai"""
+        else:
+            # Build ALLOWED TAGS section (plain text, each tag on new line)
+            allowed_labels_text = "ALLOWED TAGS:\n" + "\n".join(f"- {label}" for label in allowed_labels)
         
         # Build dynamic limit instruction using config
         limit_instruction = f"""
@@ -55,8 +72,8 @@ class PromptBuilder:
 1. Тегуй САМУ СТОРІНКУ на основі того, що вона містить, а не контент як дані чи гіперпосилання.
 2. Наприклад, якщо сторінка описує REST API endpoint, тегуй її як "doc-tech", а не як "api-endpoint-data".
 3. Якщо сторінка є індексом або кореневою сторінкою з переважно посиланнями, тегуй її на основі розділу, до якого вона належить.
-4. Використовуй ТІЛЬКИ теги зі списку ALLOWED TAGS вище.
-5. НЕ створюй нові теги та не використовуй теги, яких немає у списку."""
+4. Використовуй теги зі списку ALLOWED TAGS вище.
+5. НЕ створюй нові теги."""
         
         # Load mode-specific template (test or prod)
         mode_filename = "test.txt" if dry_run else "prod.txt"
@@ -65,7 +82,7 @@ class PromptBuilder:
         # Construct final prompt
         prompt = f"""{base_template}
 
-{allowed_tags_section}
+{allowed_labels_text}
 
 {limit_instruction}
 

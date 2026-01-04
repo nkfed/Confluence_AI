@@ -8,7 +8,7 @@
 
 ## 🎯 Основні документи
 
-### 1. [Prompt Engineering Guide](PROMPT_ENGINEERING.md)
+### 1. [Prompt Engineering Guide](guides/PROMPT_ENGINEERING.md)
 **Повний гід по створенню та керуванню промптами для AI**
 
 Що включено:
@@ -38,7 +38,7 @@
 
 ---
 
-### 3. [Logging Guide](logging_guide.md)
+### 3. [Logging Guide](logging/logging_guide.md)
 **Комплексна система логування**
 
 Що включено:
@@ -52,7 +52,7 @@
 
 ---
 
-### 4. [Tag Tree Refactoring](TAG_TREE_REFACTORING.md)
+### 4. [Tag Tree Refactoring](bulk-operations/TAG_TREE_REFACTORING.md)
 **Рефакторинг системи тегування дерева сторінок**
 
 Що включено:
@@ -64,7 +64,7 @@
 
 ---
 
-### 5. [VS Code Optimization](VSCODE_OPTIMIZATION.md)
+### 5. [VS Code Optimization](guides/VSCODE_OPTIMIZATION.md)
 **Оптимізація роботи з VS Code**
 
 Що включено:
@@ -76,7 +76,7 @@
 
 ---
 
-### 6. [Testing Guidelines](TESTING_GUIDELINES.md)
+### 6. [Testing Guidelines](guides/TESTING_GUIDELINES.md)
 **Правила створення та організації тестів**
 
 Що включено:
@@ -134,10 +134,10 @@ docs/
 👉 Читай [Logging Guide](logging/logging_guide.md) → Configuration
 
 ### Я хочу створити тест
-👉 Читай [Testing Guidelines](TESTING_GUIDELINES.md) → Розташування та Best Practices
+👉 Читай [Testing Guidelines](guides/TESTING_GUIDELINES.md) → Розташування та Best Practices
 
 ### Я хочу змінити ліміт тегів
-👉 Читай [Prompt Engineering Guide](PROMPT_ENGINEERING.md) → Розділ "Налаштування параметрів"
+👉 Читай [Prompt Engineering Guide](guides/PROMPT_ENGINEERING.md) → Розділ "Налаштування параметрів"
 
 ---
 
@@ -146,7 +146,7 @@ docs/
 ### Для нових розробників:
 1. README.md (корінь проєкту)
 2. [INDEX.md](INDEX.md) — Повна карта документації
-3. [Agent Mode System](architecture/agent-modes-overview.md)
+3. [Agent Modes Overview](architecture/agent-modes-overview.md)
 4. [Logging Guide](logging/logging_guide.md)
 5. [Prompt Engineering Guide](guides/PROMPT_ENGINEERING.md)
 
